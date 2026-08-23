@@ -1,11 +1,13 @@
-import { COLORS, TYPOGRAPHY } from "@/src/constants/theme";
-import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { COLORS, TYPOGRAPHY } from '@/src/constants/theme';
+import { Tabs } from 'expo-router';
+import { Text } from 'react-native';
 
-const TAB_ICONS: Record<string, string> = {
-  index: '🏠',
-  History: '📒',
-  Profile: '👤',
+// Android 호환 텍스트 아이콘
+const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
+  index:   { active: '⌂', inactive: '⌂' },
+  history: { active: '≡', inactive: '≡' },
+  chat:    { active: '◎', inactive: '◎' },
+  profile: { active: '○', inactive: '○' },
 };
 
 export default function TabLayout() {
@@ -18,7 +20,7 @@ export default function TabLayout() {
         tabBarStyle: {
           borderTopColor: COLORS.border,
           backgroundColor: COLORS.white,
-          height: 100,
+          height: 60,
           paddingBottom: 8,
         },
         tabBarLabelStyle: {
@@ -26,15 +28,19 @@ export default function TabLayout() {
           fontWeight: TYPOGRAPHY.medium,
         },
         tabBarIcon: ({ focused }) => (
-          <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>
-            {TAB_ICONS[route.name] ?? '▪️'}
+          <Text style={{
+            fontSize: 22,
+            color: focused ? COLORS.primary : COLORS.textSecondary,
+          }}>
+            {TAB_ICONS[route.name]?.active ?? '●'}
           </Text>
         ),
       })}
     >
-      <Tabs.Screen name="index" options={{ title: '홈'}} />
-      <Tabs.Screen name="history" options={{ title: '기록'}} />
-      <Tabs.Screen name="profile" options={{ title: '마이'}} />
+      <Tabs.Screen name="index"   options={{ title: '홈' }} />
+      <Tabs.Screen name="history" options={{ title: '기록' }} />
+      <Tabs.Screen name="chat"    options={{ title: '채팅' }} />
+      <Tabs.Screen name="profile" options={{ title: '마이' }} />
     </Tabs>
   );
 }

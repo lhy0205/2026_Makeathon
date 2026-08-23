@@ -1,23 +1,23 @@
-import {
+// ─────────────────────────────────────────────
+//  Medi-Link Mock Data
+// ─────────────────────────────────────────────
+
+import type {
+  CalendarDayInfo,
   MedicationSchedule,
-  User
-} from '../navigation';
+  OcrResult,
+  Prescription,
+  User,
+} from '../types';
 
 export const MOCK_USER: User = {
   id: 'user_001',
   name: '김철수',
-  email: 'kimcs@scample.com',
+  email: 'kimcs@example.com',
 };
 
 // 이번 달 복약 일정 (11월 기준)
 export const MOCK_SCHEDULES: MedicationSchedule[] = [
-  {
-    id: 'sch_001',
-    date: '2024-11-04',
-    label: '감기약 처방',
-    medications: ['타이레놀 500mg', '아목시실린 250mg'],
-    taken: true,
-  },
   {
     id: 'sch_001',
     date: '2024-11-04',
@@ -63,7 +63,7 @@ export const MOCK_SCHEDULES: MedicationSchedule[] = [
 ];
 
 // 처방전 목록
-export const MOCK_PERSCRIPTIONS: Prescription[] = [
+export const MOCK_PRESCRIPTIONS: Prescription[] = [
   {
     id: 'rx_001',
     patientName: '김철수',
@@ -75,14 +75,25 @@ export const MOCK_PERSCRIPTIONS: Prescription[] = [
     ],
     imageUri: null,
   },
-]
+  {
+    id: 'rx_002',
+    patientName: '김철수',
+    date: '2024-11-01',
+    hospital: '강남이비인후과',
+    medications: [
+      { name: '타이레놀', dosage: '500mg', frequency: '1일 3회', days: 5 },
+      { name: '아목시실린', dosage: '250mg', frequency: '1일 3회', days: 5 },
+    ],
+    imageUri: null,
+  },
+];
 
 // OCR 인식 샘플 결과
 export const MOCK_OCR_RESULT: OcrResult = {
   patientName: '김철수',
   date: '2024-11-20',
   hospital: '강남세브란스병원',
-  Medications: '아물로디핀 5mg, 메트포르민 500mg, 아스피린 100mg',
+  medications: '아물로디핀 5mg, 메트포르민 500mg, 아스피린 100mg',
 };
 
 // 캘린더 날짜별 이벤트 맵
@@ -94,6 +105,62 @@ export const MOCK_CALENDAR_EVENTS: Record<string, CalendarDayInfo> = {
   '2024-11-25': { hasMed: true, taken: false },
   '2024-11-26': { hasMed: true, taken: false },
 };
+
+// ── 채팅 mock ─────────────────────────────────
+import type { ChatMessage, MedCheckGroup, SideEffectItem } from '../types';
+
+export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
+  {
+    id: 'msg_001',
+    role: 'bot',
+    text: '안녕하세요! 저는 Medi-Self입니다 :)\nMedi-Self앱에 가입하신 것을 환영합니다!\n\n복약 관리를 도와드릴게요. 현재 복용 중인 약이 있으신가요?',
+    time: '오전 9:00',
+  },
+  {
+    id: 'msg_002',
+    role: 'user',
+    text: '네, 혈압약을 먹고 있어요.',
+    time: '오전 9:01',
+  },
+  {
+    id: 'msg_003',
+    role: 'bot',
+    text: '알겠습니다! 혈압약은 매일 규칙적으로 복용하는 것이 중요해요.\n\n복약 시간을 설정해 드릴까요?',
+    time: '오전 9:01',
+  },
+];
+
+export const MOCK_BOT_NAME = 'Medi-Self';
+
+// ── 복약 체크 mock ────────────────────────────
+export const MOCK_MED_CHECK: MedCheckGroup[] = [
+  {
+    period: '아침',
+    items: [
+      { id: 'mc_001', name: 'A 약', dosage: '10mg', time: '오전 8:00', taken: true },
+      { id: 'mc_002', name: 'B 약', dosage: '100mg', time: '오전 8:00', taken: true },
+    ],
+  },
+  {
+    period: '저녁',
+    items: [
+      { id: 'mc_003', name: 'A 약', dosage: '10mg', time: '오후 7:00', taken: false },
+      { id: 'mc_004', name: 'C 약', dosage: '100mg', time: '오후 8:00', taken: false },
+    ],
+  },
+];
+
+export const MOCK_RECOVERY_PERCENT = 70;
+
+// ── 부작용 체크 mock ──────────────────────────
+export const MOCK_SIDE_EFFECTS: SideEffectItem[] = [
+  { id: 'se_001', label: '구역감', enabled: false },
+  { id: 'se_002', label: '두통', enabled: true },
+  { id: 'se_003', label: '속쓰림', enabled: false },
+  { id: 'se_004', label: '어지러움', enabled: true },
+  { id: 'se_005', label: '발진', enabled: false },
+  { id: 'se_006', label: '직접 입력', enabled: false, customValue: '' },
+];
 
 // 달 이름
 export const MONTH_NAMES = [
