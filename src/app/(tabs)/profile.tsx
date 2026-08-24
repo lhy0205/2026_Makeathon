@@ -6,11 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ProfileTab() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>마이페이지</Text>
-      </View>
-
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+        {/* 타이틀 */}
+        <Text style={styles.pageTitle}>마이페이지</Text>
 
         {/* 유저 카드 */}
         <View style={styles.userCard}>
@@ -53,23 +52,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  header: {
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: TYPOGRAPHY.base,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.textPrimary,
-  },
   content: {
     padding: SPACING.base,
     gap: SPACING.base,
     paddingBottom: SPACING.base,
+  },
+  pageTitle: {
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+    paddingVertical: SPACING.xs,
+    alignSelf: 'flex-start',
   },
 
   // 유저 카드

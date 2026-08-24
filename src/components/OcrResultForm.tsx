@@ -1,45 +1,59 @@
-import React from "react";
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from "../constants/theme";
-import type { OcrResult } from "../types";
+import React from 'react';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
+import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import type { OcrResult } from '../types';
 
 interface Props {
-  result: OcrResult;
+  result: OcrResult | null;       // null이면 빈칸 표시
+  scanning?: boolean;             // OCR 인식 중 로딩
   onChangeResult?: (updated: OcrResult) => void;
   editable?: boolean;
 }
 
-const FIELD_LABELS: Array<{ key: keyof OcrResult; label: string; multiline?: boolean }> = [
-  { key: 'patientName', label: '이름' },
-  { key: 'date', label: '날짜' },
-  { key: 'hospital', label: '병원' },
-  { key: 'medications', label: '약정보', multiline: true },
+const EMPTY_RESULT: OcrResult = {
+  patientName: '',
+  date: '',
+  hospital: '',
+  medications: '',
+};
+
+const FIELD_LABELS: Array<{ key: keyof OcrResult; label: string; multiline?: boolean; placeholder: string }> = [
+  { key: 'patientName', label: '이름',   placeholder: '인식된 이름이 표시됩니다' },
+  { key: 'date',        label: '날짜',   placeholder: '인식된 날짜가 표시됩니다' },
+  { key: 'hospital',    label: '병원',   placeholder: '인식된 병원명이 표시됩니다' },
+  { key: 'medications', label: '약정보', placeholder: '인식된 약 정보가 표시됩니다', multiline: true },
 ];
 
-export default function OcrResultForm({ result, onChangeResult, editable = false }: Props) {
+export default function OcrResultForm({ result, scanning = false, onChangeResult, editable = false }: Props) {
+  const data = result ?? EMPTY_RESULT;
+
   const handleChange = (key: keyof OcrResult, value: string) => {
-    onChangeResult?.({ ...result, [key]: value });
+    onChangeResult?.({ ...data, [key]: value });
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>OCR 인식 정보</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.sectionTitle}>OCR 인식 정보</Text>
+        {scanning && (
+          <View style={styles.scanningBadge}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.scanningText}>인식 중...</Text>
+          </View>
+        )}
+      </View>
 
-      {FIELD_LABELS.map(({ key, label, multiline }) => (
+      {FIELD_LABELS.map(({ key, label, multiline, placeholder }) => (
         <View key={key} style={styles.fieldRow}>
           <Text style={styles.label}>{label}</Text>
           <TextInput
             style={[styles.valueInput, multiline && styles.multiline]}
-            value={result[key]}
+            value={data[key]}
             onChangeText={(v) => handleChange(key, v)}
-            editable={editable}
+            editable={editable && !scanning}
             multiline={multiline}
             numberOfLines={multiline ? 3 : 1}
+            placeholder={placeholder}
             placeholderTextColor={COLORS.textPlaceholder}
           />
         </View>
@@ -55,18 +69,37 @@ const styles = StyleSheet.create({
     padding: SPACING.base,
     gap: SPACING.sm,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs,
+  },
   sectionTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.semibold,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
+  },
+  scanningBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.primary + '15',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderRadius: RADIUS.round,
+  },
+  scanningText: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.semibold,
   },
   fieldRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: SPACING.sm,
     borderBottomWidth: 1,
-    borderBlockColor: COLORS.border,
+    borderBottomColor: COLORS.border,
     paddingBottom: SPACING.xs,
   },
   label: {

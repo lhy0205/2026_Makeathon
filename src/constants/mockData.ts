@@ -106,6 +106,19 @@ export const MOCK_CALENDAR_EVENTS: Record<string, CalendarDayInfo> = {
   '2024-11-26': { hasMed: true, taken: false },
 };
 
+// 병원 방문 / 예약 일정 (형광펜 표시용)
+export const MOCK_HOSPITAL_EVENTS: Record<string, { label: string; type: 'visit' | 'appointment' }> = {
+  '2024-11-09': { label: '성형외과 방문', type: 'visit' },
+  '2024-11-10': { label: '성형외과 방문', type: 'visit' },
+  '2024-11-11': { label: '성형외과 방문', type: 'visit' },
+  '2024-11-12': { label: '성형외과 방문', type: 'visit' },
+  '2024-11-13': { label: '성형외과 방문', type: 'visit' },
+  '2024-11-22': { label: '음식내과 예약', type: 'appointment' },
+  '2024-11-23': { label: '음식내과 예약', type: 'appointment' },
+  '2024-11-24': { label: '음식내과 예약', type: 'appointment' },
+  '2024-11-25': { label: '음식내과 예약', type: 'appointment' },
+};
+
 // ── 채팅 mock ─────────────────────────────────
 import type { ChatMessage, MedCheckGroup, SideEffectItem } from '../types';
 
@@ -154,12 +167,12 @@ export const MOCK_RECOVERY_PERCENT = 70;
 
 // ── 부작용 체크 mock ──────────────────────────
 export const MOCK_SIDE_EFFECTS: SideEffectItem[] = [
-  { id: 'se_001', label: '구역감', enabled: false },
-  { id: 'se_002', label: '두통', enabled: true },
-  { id: 'se_003', label: '속쓰림', enabled: false },
-  { id: 'se_004', label: '어지러움', enabled: true },
-  { id: 'se_005', label: '발진', enabled: false },
-  { id: 'se_006', label: '직접 입력', enabled: false, customValue: '' },
+  { id: 'se_001', label: '구역감',   enabled: true,  score: 50 },
+  { id: 'se_002', label: '두통',     enabled: true,  score: 70 },
+  { id: 'se_003', label: '속쓰림',   enabled: false, score: 50 },
+  { id: 'se_004', label: '어지러움', enabled: true,  score: 30 },
+  { id: 'se_005', label: '발진',     enabled: false, score: 50 },
+  { id: 'se_006', label: '직접 입력', enabled: false, score: 50, customValue: '' },
 ];
 
 // 달 이름

@@ -3,7 +3,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -66,13 +65,6 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{MOCK_BOT_NAME}</Text>
-        <Text style={styles.headerSub}>AI 복약 도우미</Text>
-      </View>
 
       {/* 메시지 목록 */}
       <KeyboardAvoidingView
@@ -119,26 +111,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-
-  // 헤더
-  header: {
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: TYPOGRAPHY.md,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.primary,
-  },
-  headerSub: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
-    marginTop: 2,
   },
 
   // 메시지 목록

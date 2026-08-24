@@ -79,7 +79,8 @@ export interface SideEffectItem {
   id: string;
   label: string;
   enabled: boolean;
-  customValue?: string;   // '직접 입력' 항목
+  score: number;          // 0(나쁨) ~ 100(좋음)
+  customValue?: string;
 }
 
 // ── Navigation ────────────────────────────────

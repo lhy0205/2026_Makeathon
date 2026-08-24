@@ -1,80 +1,80 @@
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useState } from "react";
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import React, { useState } from 'react';
 import {
   ScrollView,
-  StatusBar,
   StyleSheet,
-  Text,
-  TouchableOpacity,
+  Text, TouchableOpacity,
   View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import MediCalendar from "../components/MediCalendar";
-import { MOCK_SCHEDULES, MOCK_USER } from "../constants/mockData";
-import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../constants/theme";
-import type { CalendarDayInfo, HomeStackParamList } from "../types";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import MediCalendar from '../components/MediCalendar';
+import { MOCK_USER } from '../constants/mockData';
+import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { getHighlightColor } from '../hooks/useCalendar';
+import type { HomeStackParamList } from '../types';
+import type { VisitResponse } from '../types/Api';
 
 type Props = {
   navigation: NativeStackNavigationProp<HomeStackParamList, 'HomeMain'>;
 };
 
+const STATUS_LABEL: Record<VisitResponse['treatmentStatus'], string> = {
+  REGISTERED: '예약',
+  IN_PROGRESS: '진행 중',
+  COMPLETED: '완료',
+};
+
 export default function HomeScreen({ navigation }: Props) {
-  const [selectedDateSchedules, setSelectedDateSchedules] = useState<typeof MOCK_SCHEDULES>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedVisits, setSelectedVisits] = useState<VisitResponse[]>([]);
 
-  const handleDayPress = (dateStr: string, _info: CalendarDayInfo | undefined) => {
+  const handleDayPress = (dateStr: string, visits: VisitResponse[]) => {
     setSelectedDate(dateStr);
-    const matched = MOCK_SCHEDULES.filter((s) => s.date === dateStr);
-    setSelectedDateSchedules(matched);
-  };
-
-  const handleRegisterPress = () => {
-    navigation.navigate('Prescription');
+    setSelectedVisits(visits);
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ScrollView
-        style={styles.container}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
-
+        {/* 헤더 */}
         <View style={styles.headerRow}>
           <Text style={styles.greeting}>
             <Text style={styles.userName}>{MOCK_USER.name}</Text>님, 안녕하세요!
           </Text>
           <TouchableOpacity>
-            <Text style={styles.menuIcon}>⋯</Text>
+            <Text style={styles.menuIcon}>≡</Text>
           </TouchableOpacity>
         </View>
 
+        {/* 캘린더 */}
         <MediCalendar onDayPress={handleDayPress} />
 
+        {/* 선택 날짜 방문 목록 */}
         {selectedDate && (
           <View style={styles.scheduleCard}>
-            <Text style={styles.scheduleDate}>{selectedDate} 복약 일정</Text>
-            {selectedDateSchedules.length === 0 ? (
-              <Text style={styles.noSchedule}>등록된 복약 일정이 없습니다.</Text>
+            <Text style={styles.scheduleTitle}>{selectedDate}</Text>
+            {selectedVisits.length === 0 ? (
+              <Text style={styles.emptyText}>등록된 일정이 없습니다.</Text>
             ) : (
-              selectedDateSchedules.map((sch) => (
-                <View key={sch.id} style={styles.scheduleRow}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      sch.taken ? styles.badgeTaken : styles.badgeMissed,
-                    ]}
-                  >
-                    <Text style={styles.badgeText}>
-                      {sch.taken ? '복약 완료' : '미복약'}
-                    </Text>
+              selectedVisits.map((v) => (
+                <View key={v.id} style={styles.visitRow}>
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: getHighlightColor(v.treatmentStatus) },
+                  ]}>
+                    <Text style={styles.statusText}>{STATUS_LABEL[v.treatmentStatus]}</Text>
                   </View>
-                  <View style={styles.scheduleInfo}>
-                    <Text style={styles.scheduleLabel}>{sch.label}</Text>
-                    <Text style={styles.scheduleMeds}>
-                      {sch.medications.join(', ')}
+                  <View style={styles.visitInfo}>
+                    <Text style={styles.hospitalName}>
+                      {v.hospitalName}{v.departmentName ? ` · ${v.departmentName}` : ''}
                     </Text>
+                    {v.visitReason && (
+                      <Text style={styles.visitReason}>{v.visitReason}</Text>
+                    )}
                   </View>
                 </View>
               ))
@@ -82,14 +82,16 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
+        {/* 병원 방문 등록 */}
         <View style={styles.registerSection}>
           <Text style={styles.registerQuestion}>오늘 병원에 방문하셨나요?</Text>
           <TouchableOpacity
-            style={styles.registerButton}
-            onPress={handleRegisterPress}
+            style={styles.registerBtn}
+            onPress={() => navigation.navigate('Prescription')}
             activeOpacity={0.85}
           >
-            <Text style={styles.registerButtonArrow}>등록하러 가기{'>'}</Text>
+            <Text style={styles.registerBtnText}>등록하러 가기</Text>
+            <Text style={styles.registerBtnArrow}>{'>'}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -98,130 +100,53 @@ export default function HomeScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.base,
-    gap: SPACING.base,
-    paddingBottom: SPACING.base,
-  },
-
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  scroll: { flex: 1 },
+  content: { padding: SPACING.base, gap: SPACING.base, paddingBottom: SPACING.base },
   headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.xs,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', paddingVertical: SPACING.xs,
   },
-  greeting: {
-    fontSize: TYPOGRAPHY.md,
-    color: COLORS.textPrimary,
-    fontWeight: TYPOGRAPHY.regular,
-  },
-  userName: {
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.primary,
-  },
-  menuIcon: {
-    fontSize: TYPOGRAPHY.lg,
-    color: COLORS.textSecondary,
-  },
+  greeting: { fontSize: TYPOGRAPHY.lg, color: COLORS.textPrimary, fontWeight: TYPOGRAPHY.regular },
+  userName: { fontWeight: TYPOGRAPHY.bold, color: COLORS.textPrimary },
+  menuIcon: { fontSize: 22, color: COLORS.textSecondary },
 
+  // 선택 날짜 카드
   scheduleCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.base,
-    gap: SPACING.sm,
-    ...SHADOW.sm,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    padding: SPACING.base, gap: SPACING.sm, ...SHADOW.sm,
   },
-  scheduleDate: {
-    fontSize: TYPOGRAPHY.sm,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.primary,
-    marginBottom: SPACING.xs,
+  scheduleTitle: {
+    fontSize: TYPOGRAPHY.sm, fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary, marginBottom: SPACING.xs,
   },
-  noSchedule: {
-    fontSize: TYPOGRAPHY.sm,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    paddingVertical: SPACING.sm,
+  emptyText: {
+    fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary,
+    textAlign: 'center', paddingVertical: SPACING.sm,
   },
-  scheduleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.sm,
-  },
+  visitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
   statusBadge: {
-    borderRadius: RADIUS.round,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    alignSelf: 'flex-start',
-    marginTop: 2,
+    borderRadius: RADIUS.round, paddingHorizontal: SPACING.sm,
+    paddingVertical: 3, alignSelf: 'flex-start', marginTop: 2,
   },
-  badgeTaken: {
-    backgroundColor: COLORS.success + '22',
-  },
-  badgeMissed: {
-    backgroundColor: COLORS.error + '22',
-  },
-  badgeText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textPrimary,
-  },
-  scheduleInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  scheduleLabel: {
-    fontSize: TYPOGRAPHY.sm,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.textPrimary,
-  },
-  scheduleMeds: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
-  },
+  statusText: { fontSize: TYPOGRAPHY.xs, fontWeight: TYPOGRAPHY.bold, color: COLORS.textPrimary },
+  visitInfo: { flex: 1, gap: 2 },
+  hospitalName: { fontSize: TYPOGRAPHY.sm, fontWeight: TYPOGRAPHY.semibold, color: COLORS.textPrimary },
+  visitReason: { fontSize: TYPOGRAPHY.xs, color: COLORS.textSecondary },
 
+  // 등록 섹션
   registerSection: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.base,
-    alignItems: 'center',
-    gap: SPACING.md,
-    ...SHADOW.sm,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    padding: SPACING.base, alignItems: 'center', gap: SPACING.md, ...SHADOW.sm,
   },
-  registerQuestion: {
-    fontSize: TYPOGRAPHY.base,
-    color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.medium,
+  registerQuestion: { fontSize: TYPOGRAPHY.base, color: COLORS.textSecondary },
+  registerBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.round,
+    paddingVertical: SPACING.md, paddingHorizontal: SPACING.xxl,
+    width: '100%', borderWidth: 1, borderColor: COLORS.border,
+    gap: SPACING.sm, ...SHADOW.sm,
   },
-  registerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.round,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.xxl,
-    gap: SPACING.sm,
-    width: '100%',
-    ...SHADOW.md,
-  },
-  registerButtonText: {
-    fontSize: TYPOGRAPHY.md,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.white,
-  },
-  registerButtonArrow: {
-    fontSize: TYPOGRAPHY.xl,
-    color: COLORS.white,
-    lineHeight: TYPOGRAPHY.xl,
-  },
+  registerBtnText: { fontSize: TYPOGRAPHY.base, fontWeight: TYPOGRAPHY.semibold, color: COLORS.textPrimary },
+  registerBtnArrow: { fontSize: TYPOGRAPHY.lg, color: COLORS.textSecondary },
 });
