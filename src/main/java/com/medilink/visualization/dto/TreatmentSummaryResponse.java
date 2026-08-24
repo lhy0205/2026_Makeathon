@@ -1,15 +1,14 @@
 package com.medilink.visualization.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record TreatmentSummaryResponse(
-        Integer initialSeverity,
-        Integer finalSeverity,
-        BigDecimal initialTemperature,
-        BigDecimal finalTemperature,
-        long sideEffectCount,
-        long totalDoses,
-        long takenDoses,
+        Integer initialSymptomSeverity,
+        Integer finalSymptomSeverity,
+        BigDecimal initialBodyTemperature,
+        BigDecimal finalBodyTemperature,
+        List<String> majorSideEffects,
         double adherenceRate
 ) {
 }

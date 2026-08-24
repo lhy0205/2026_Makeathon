@@ -43,10 +43,12 @@ public class Report {
     @Column(name = "lifestyle_summary", columnDefinition = "TEXT")
     private String lifestyleSummary;
 
+    @Column(name = "adherence_rate", nullable = false)
+    private double adherenceRate;
+
     @Column(name = "doctor_notes", columnDefinition = "TEXT")
     private String doctorNotes;
 
-    // 스키마에 DEFAULT CURRENT_TIMESTAMP가 없어 Hibernate가 insert 시점에 직접 채운다.
     @CreationTimestamp
     @Column(name = "generated_at", nullable = false, updatable = false)
     private LocalDateTime generatedAt;
@@ -57,6 +59,7 @@ public class Report {
             String symptomChanges,
             String suspectedSideEffects,
             String lifestyleSummary,
+            double adherenceRate,
             String doctorNotes
     ) {
         this.visit = visit;
@@ -64,6 +67,7 @@ public class Report {
         this.symptomChanges = symptomChanges;
         this.suspectedSideEffects = suspectedSideEffects;
         this.lifestyleSummary = lifestyleSummary;
+        this.adherenceRate = adherenceRate;
         this.doctorNotes = doctorNotes;
     }
 }

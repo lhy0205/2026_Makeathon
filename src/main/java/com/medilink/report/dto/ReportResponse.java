@@ -11,6 +11,7 @@ public record ReportResponse(
         String symptomChanges,
         String suspectedSideEffects,
         String lifestyleSummary,
+        double adherenceRate,
         String doctorNotes,
         LocalDateTime generatedAt
 ) {
@@ -22,6 +23,7 @@ public record ReportResponse(
                 report.getSymptomChanges(),
                 report.getSuspectedSideEffects(),
                 report.getLifestyleSummary(),
+                report.getAdherenceRate(),
                 report.getDoctorNotes(),
                 report.getGeneratedAt()
         );

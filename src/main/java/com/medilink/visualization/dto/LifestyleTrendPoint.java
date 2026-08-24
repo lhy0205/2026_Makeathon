@@ -1,10 +1,10 @@
 package com.medilink.visualization.dto;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 public record LifestyleTrendPoint(
-        LocalDateTime recordedAt,
+        LocalDate date,
         BigDecimal sleepHours,
         Integer waterIntakeMl,
         Integer activityMinutes

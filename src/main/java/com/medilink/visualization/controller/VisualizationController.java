@@ -1,7 +1,7 @@
 package com.medilink.visualization.controller;
 
-import com.medilink.visualization.dto.HealthTrendPoint;
-import com.medilink.visualization.dto.LifestyleTrendPoint;
+import com.medilink.visualization.dto.HealthTrendResponse;
+import com.medilink.visualization.dto.LifestyleTrendResponse;
 import com.medilink.visualization.dto.TreatmentComparisonChartResponse;
 import com.medilink.visualization.dto.TreatmentSummaryResponse;
 import com.medilink.visualization.service.VisualizationService;
@@ -12,8 +12,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/visits/{visitId}/visualizations")
@@ -22,7 +20,7 @@ public class VisualizationController {
     private final VisualizationService visualizationService;
 
     @GetMapping("/health-trend")
-    public List<HealthTrendPoint> getHealthTrend(
+    public HealthTrendResponse getHealthTrend(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long visitId
     ) {
@@ -30,7 +28,7 @@ public class VisualizationController {
     }
 
     @GetMapping("/lifestyle-trend")
-    public List<LifestyleTrendPoint> getLifestyleTrend(
+    public LifestyleTrendResponse getLifestyleTrend(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long visitId
     ) {

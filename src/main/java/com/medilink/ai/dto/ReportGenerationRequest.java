@@ -9,7 +9,8 @@ public record ReportGenerationRequest(
         Long visitId,
         VisitSummary visit,
         List<MedicationSummary> medications,
-        List<HealthLogSummary> healthLogs
+        List<HealthLogSummary> healthLogs,
+        List<DoseSummary> doses
 ) {
 
     public record VisitSummary(
@@ -30,7 +31,15 @@ public record ReportGenerationRequest(
             Integer symptomSeverity,
             String sideEffects,
             BigDecimal bodyTemperature,
-            BigDecimal sleepHours
+            BigDecimal sleepHours,
+            Integer waterIntakeMl,
+            Integer activityMinutes
+    ) {
+    }
+
+    public record DoseSummary(
+            LocalDateTime scheduledAt,
+            String doseStatus
     ) {
     }
 }

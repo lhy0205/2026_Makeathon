@@ -5,6 +5,7 @@ public record GeneratedReport(
         String symptomChanges,
         String suspectedSideEffects,
         String lifestyleSummary,
+        double adherenceRate,
         String doctorNotes
 ) {
 }

@@ -88,6 +88,7 @@ public class HealthLog {
     }
 
     public void update(
+            LocalDateTime recordedAt,
             String symptomName,
             Integer symptomSeverity,
             String sideEffects,
@@ -97,6 +98,7 @@ public class HealthLog {
             Integer activityMinutes,
             String memo
     ) {
+        this.recordedAt = recordedAt;
         this.symptomName = symptomName;
         this.symptomSeverity = symptomSeverity;
         this.sideEffects = sideEffects;

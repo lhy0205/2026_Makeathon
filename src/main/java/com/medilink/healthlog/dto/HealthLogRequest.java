@@ -4,12 +4,14 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record HealthLogRequest(
         @NotNull LocalDateTime recordedAt,
         String symptomName,
         Integer symptomSeverity,
-        String sideEffects,
+        @NotNull
+        List<String> sideEffects,
         BigDecimal bodyTemperature,
         BigDecimal sleepHours,
         Integer waterIntakeMl,
