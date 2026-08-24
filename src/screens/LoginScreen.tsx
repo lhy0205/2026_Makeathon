@@ -1,10 +1,10 @@
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -15,12 +15,13 @@ import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../constants/theme"
 import type { RootStackParamList } from "../types";
 
 type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
+  navigation?: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
 
 const MOCK_CREDENTIALS = { email: 'test@medi.com', password: '1234'};
 
 export default function LoginScreen({ navigation }: Props) {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,7 +29,7 @@ export default function LoginScreen({ navigation }: Props) {
   const handleLogin = () => {
     setError('');
     if (email === MOCK_CREDENTIALS.email && password === MOCK_CREDENTIALS.password) {
-      navigation.replace('Main');
+      router.replace('/(tabs)');
     } else {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.');
     }
@@ -39,7 +40,6 @@ export default function LoginScreen({ navigation }: Props) {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -81,10 +81,10 @@ export default function LoginScreen({ navigation }: Props) {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <View style={styles.linkRow}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/findaccount')}>
               <Text style={styles.linkText}>Find ID / Password</Text>
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/signup')}>
               <Text style={styles.linkTextBold}>Sign Up</Text>
             </TouchableOpacity>
           </View>

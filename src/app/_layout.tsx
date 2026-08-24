@@ -8,9 +8,15 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="findaccount" />
+        <Stack.Screen name="signup" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="prescription" />
         <Stack.Screen name="medcheck" />
+        <Stack.Screen name="medcheckpage" />
+        <Stack.Screen name="statuscheck" />
         <Stack.Screen name="medlog" />
         <Stack.Screen name="sideeffect" />
       </Stack>

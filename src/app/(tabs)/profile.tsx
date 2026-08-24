@@ -1,9 +1,22 @@
 import { MOCK_PRESCRIPTIONS, MOCK_USER } from '@/src/constants/mockData';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '@/src/constants/theme';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileTab() {
+  const router = useRouter();
+
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '로그아웃 하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '로그아웃',
+        style: 'destructive',
+        onPress: () => router.replace('/login'),
+      },
+    ]);
+  };
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -41,6 +54,15 @@ export default function ProfileTab() {
             ))}
           </View>
         ))}
+
+        {/* 로그아웃 */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={handleLogout}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.logoutText}>로그아웃</Text>
+        </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
@@ -153,5 +175,20 @@ const styles = StyleSheet.create({
   medFreq: {
     fontSize: TYPOGRAPHY.xs,
     color: COLORS.textSecondary,
+  },
+
+  // 로그아웃
+  logoutBtn: {
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    marginTop: SPACING.sm,
+  },
+  logoutText: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: TYPOGRAPHY.semibold,
+    color: COLORS.error,
   },
 });
