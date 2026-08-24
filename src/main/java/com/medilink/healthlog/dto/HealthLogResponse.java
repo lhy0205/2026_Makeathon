@@ -4,6 +4,8 @@ import com.medilink.healthlog.entity.HealthLog;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public record HealthLogResponse(
         Long id,
@@ -11,7 +13,7 @@ public record HealthLogResponse(
         LocalDateTime recordedAt,
         String symptomName,
         Integer symptomSeverity,
-        String sideEffects,
+        List<String> sideEffects,
         BigDecimal bodyTemperature,
         BigDecimal sleepHours,
         Integer waterIntakeMl,
@@ -26,7 +28,7 @@ public record HealthLogResponse(
                 log.getRecordedAt(),
                 log.getSymptomName(),
                 log.getSymptomSeverity(),
-                log.getSideEffects(),
+                parseSideEffects(log.getSideEffects()),
                 log.getBodyTemperature(),
                 log.getSleepHours(),
                 log.getWaterIntakeMl(),
@@ -34,5 +36,22 @@ public record HealthLogResponse(
                 log.getMemo(),
                 log.getCreatedAt()
         );
+    }
+
+    private static List<String> parseSideEffects(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+
+        List<String> sideEffects = new ArrayList<>();
+        String[] values = value.split("\\n");
+
+        for (String item : values) {
+            if (!item.isBlank()) {
+                sideEffects.add(item.trim());
+            }
+        }
+
+        return sideEffects;
     }
 }

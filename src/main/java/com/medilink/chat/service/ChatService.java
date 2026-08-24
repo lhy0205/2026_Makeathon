@@ -34,13 +34,13 @@ public class ChatService {
     public ChatMessageResponse askChatbot(Long userId, Long visitId, ChatQuestionRequest request) {
         Visit visit = visitService.getOwnedVisit(userId, visitId);
 
-        chatMessageRepository.save(new ChatMessage(visit, ChatRole.USER, request.question(), null));
+        chatMessageRepository.save(new ChatMessage(visit, ChatRole.USER, request.content(), null));
 
         List<Medication> medications = findMedicationsForVisit(visitId);
 
         ChatAskRequest aiRequest = new ChatAskRequest(
                 visitId,
-                request.question(),
+                request.content(),
                 medications.stream()
                         .map(m -> new ChatAskRequest.MedicationSummary(m.getMedicationName(), formatDosage(m), m.getInstructions()))
                         .toList()

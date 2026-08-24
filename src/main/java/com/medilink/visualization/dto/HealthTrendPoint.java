@@ -1,11 +1,10 @@
 package com.medilink.visualization.dto;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 public record HealthTrendPoint(
-        LocalDateTime recordedAt,
-        String symptomName,
+        LocalDate date,
         Integer symptomSeverity,
         BigDecimal bodyTemperature
 ) {

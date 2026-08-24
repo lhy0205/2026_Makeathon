@@ -1,4 +1,10 @@
 package com.medilink.ai.dto;
 
-public record TreatmentComparisonResult(String commonPoints, String differences, String summary) {
+import java.util.List;
+
+public record TreatmentComparisonResult(
+        List<String> commonPoints,
+        List<String> differences,
+        String summary
+) {
 }

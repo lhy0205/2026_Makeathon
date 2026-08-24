@@ -16,6 +16,7 @@ public class MockReportAiClient implements ReportAiClient {
                 "Mock: 증상 점수가 점차 호전되는 추세입니다.",
                 "Mock: 보고된 특이 부작용이 없습니다.",
                 "Mock: 수면·수분 섭취가 대체로 양호했습니다.",
+                0.0,
                 "Mock: 다음 방문 시 복약 순응도를 함께 확인해 주세요."
         );
     }

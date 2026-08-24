@@ -1,5 +1,6 @@
 package com.medilink.ai.dto;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public record TreatmentComparisonRequest(TreatmentSnapshot current, TreatmentSnapshot past) {
@@ -10,7 +11,9 @@ public record TreatmentComparisonRequest(TreatmentSnapshot current, TreatmentSna
             List<String> medicationNames,
             Integer initialSeverity,
             Integer finalSeverity,
-            String finalStatus
+            String finalStatus,
+            LocalDate medicationStartDate,
+            LocalDate medicationEndDate
     ) {
     }
 }

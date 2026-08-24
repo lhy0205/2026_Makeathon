@@ -82,11 +82,29 @@ CREATE TABLE IF NOT EXISTS reports (
     symptom_changes TEXT,
     suspected_side_effects TEXT,
     lifestyle_summary TEXT,
+    adherence_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
     doctor_notes TEXT,
     generated_at TIMESTAMP NOT NULL,
     KEY idx_reports_visit_date (visit_id, generated_at),
     CONSTRAINT fk_reports_visit
         FOREIGN KEY (visit_id) REFERENCES visits (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS treatment_comparisons (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    current_visit_id BIGINT NOT NULL,
+    past_visit_id BIGINT NOT NULL,
+    common_points TEXT,
+    differences TEXT,
+    summary TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_treatment_comparisons_current_date (current_visit_id, created_at),
+    CONSTRAINT fk_treatment_comparisons_current_visit
+        FOREIGN KEY (current_visit_id) REFERENCES visits (id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_treatment_comparisons_past_visit
+        FOREIGN KEY (past_visit_id) REFERENCES visits (id)
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

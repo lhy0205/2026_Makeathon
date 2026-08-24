@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -39,7 +40,7 @@ public class HealthLogService {
                 request.recordedAt(),
                 request.symptomName(),
                 request.symptomSeverity(),
-                request.sideEffects(),
+                serializeSideEffects(request.sideEffects()),
                 request.bodyTemperature(),
                 request.sleepHours(),
                 request.waterIntakeMl(),
@@ -67,9 +68,10 @@ public class HealthLogService {
     public HealthLogResponse updateHealthLog(Long userId, Long healthLogId, HealthLogRequest request) {
         HealthLog log = getOwnedHealthLog(userId, healthLogId);
         log.update(
+                request.recordedAt(),
                 request.symptomName(),
                 request.symptomSeverity(),
-                request.sideEffects(),
+                serializeSideEffects(request.sideEffects()),
                 request.bodyTemperature(),
                 request.sleepHours(),
                 request.waterIntakeMl(),
@@ -87,5 +89,25 @@ public class HealthLogService {
     private HealthLog getOwnedHealthLog(Long userId, Long healthLogId) {
         return healthLogRepository.findByIdAndVisitUserId(healthLogId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "건강 기록을 찾을 수 없습니다."));
+    }
+
+    private String serializeSideEffects(List<String> sideEffects) {
+        if (sideEffects == null || sideEffects.isEmpty()) {
+            return null;
+        }
+
+        List<String> values = new ArrayList<>();
+
+        for (String sideEffect : sideEffects) {
+            if (sideEffect != null && !sideEffect.isBlank()) {
+                values.add(sideEffect.trim());
+            }
+        }
+
+        if (values.isEmpty()) {
+            return null;
+        }
+
+        return String.join("\n", values);
     }
 }

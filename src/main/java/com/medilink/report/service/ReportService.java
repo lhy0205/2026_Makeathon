@@ -3,6 +3,8 @@ package com.medilink.report.service;
 import com.medilink.ai.client.ReportAiClient;
 import com.medilink.ai.dto.GeneratedReport;
 import com.medilink.ai.dto.ReportGenerationRequest;
+import com.medilink.dose.entity.MedicationDose;
+import com.medilink.dose.repository.MedicationDoseRepository;
 import com.medilink.global.exception.ApiException;
 import com.medilink.healthlog.entity.HealthLog;
 import com.medilink.healthlog.repository.HealthLogRepository;
@@ -30,6 +32,7 @@ public class ReportService {
     private final HealthLogRepository healthLogRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final MedicationRepository medicationRepository;
+    private final MedicationDoseRepository medicationDoseRepository;
     private final VisitService visitService;
     private final ReportAiClient reportAiClient;
 
@@ -42,6 +45,7 @@ public class ReportService {
                 .map(medicationRepository::findAllByPrescriptionIdOrderById)
                 .orElse(List.of());
         List<HealthLog> healthLogs = healthLogRepository.findAllByVisitIdOrderByRecordedAtAsc(visitId);
+        List<MedicationDose> doses = medicationDoseRepository.findAllByMedicationPrescriptionVisitId(visitId);
 
         ReportGenerationRequest aiRequest = new ReportGenerationRequest(
                 visitId,
@@ -66,7 +70,15 @@ public class ReportService {
                                 h.getSymptomSeverity(),
                                 h.getSideEffects(),
                                 h.getBodyTemperature(),
-                                h.getSleepHours()
+                                h.getSleepHours(),
+                                h.getWaterIntakeMl(),
+                                h.getActivityMinutes()
+                        ))
+                        .toList(),
+                doses.stream()
+                        .map(d -> new ReportGenerationRequest.DoseSummary(
+                                d.getScheduledAt(),
+                                d.getDoseStatus().name()
                         ))
                         .toList()
         );
@@ -79,6 +91,7 @@ public class ReportService {
                 generated.symptomChanges(),
                 generated.suspectedSideEffects(),
                 generated.lifestyleSummary(),
+                generated.adherenceRate(),
                 generated.doctorNotes()
         );
         return ReportResponse.from(reportRepository.save(report));
