@@ -6,6 +6,7 @@ public record PrescriptionAnalysisResult(
         String rawOcrText,
         String hospitalName,
         String departmentName,
-        List<AnalyzedMedication> medications
+        List<AnalyzedMedication> medications,
+        String imageUrl
 ) {
 }

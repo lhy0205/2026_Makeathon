@@ -6,6 +6,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import settings
 from app.services.vector_store import reset_vector_store
+from app.schemas.knowledge import KnowledgeEntryInput
 
 
 def _load_documents() -> list[Document]:
@@ -25,6 +26,10 @@ def _load_documents() -> list[Document]:
                 page_content=content,
                 metadata={
                     "title": entry["name"],
+                    # 관리자 화면에서 넣은 항목과 같은 모양이어야
+                    # 어느 경로로 색인했든 DUR 조회 키가 살아 있다.
+                    # Chroma는 메타데이터에 None을 받지 않아 빈 문자열로 둔다
+                    "item_seq": entry.get("item_seq") or "",
                     "purpose": entry.get("purpose", ""),
                     "side_effects": entry.get("side_effects", ""),
                 },
@@ -33,8 +38,33 @@ def _load_documents() -> list[Document]:
     return documents
 
 
-def reindex_knowledge_base() -> tuple[int, int]:
-    documents = _load_documents()
+def _documents_from_entries(entries: list[KnowledgeEntryInput]) -> list[Document]:
+    documents = []
+
+    for entry in entries:
+        content = (
+            f"{entry.medication_name}\n"
+            f"효능/목적: {entry.purpose or ''}\n"
+            f"주요 부작용: {entry.side_effects or ''}"
+        )
+        documents.append(
+            Document(
+                page_content=content,
+                metadata={
+                    "title": entry.medication_name,
+                    # Chroma는 메타데이터에 None을 받지 않는다
+                    "item_seq": entry.item_seq or "",
+                    "purpose": entry.purpose or "",
+                    "side_effects": entry.side_effects or "",
+                },
+            )
+        )
+
+    return documents
+
+
+def reindex_knowledge_base(entries: list[KnowledgeEntryInput] | None = None) -> tuple[int, int]:
+    documents = _documents_from_entries(entries) if entries else _load_documents()
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_documents(documents)
 

@@ -1,6 +1,7 @@
 .env
 .gradle/
 .gradle-user-home/
+.pnpm-store/
 build/
 out/
 .idea/

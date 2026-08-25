@@ -175,6 +175,8 @@ def _vector_lookup(name: str) -> tuple[dict | None, float]:
     return (
         {
             "name": doc.metadata.get("title"),
+            # 백엔드가 DUR(병용금기) 조회에 쓰는 품목기준코드
+            "item_seq": doc.metadata.get("item_seq"),
             "purpose": doc.metadata.get("purpose"),
             "side_effects": doc.metadata.get("side_effects"),
         },
@@ -212,6 +214,9 @@ def match_medication(parsed: ParsedMedication) -> AnalyzedMedication:
 
     return AnalyzedMedication(
         medication_name=name,
+        # 이 값이 있어야 백엔드가 약물 상호작용을 검사할 수 있다.
+        # 색인 단계에서 None을 빈 문자열로 바꿔 두므로 여기서 되돌린다
+        item_seq=((entry.get("item_seq") or None) if entry else None),
         dosage=parsed.dosage,
         dose_unit=parsed.dose_unit,
         frequency_per_day=parsed.frequency_per_day,

@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import type {
   AuthResponse,
+  BatchDoseUpdateRequest,
   ChatMessageResponse,
   ComparisonResponse,
   CreateDosesRequest,
@@ -51,7 +52,8 @@ function resolveBaseUrl(): string {
 
 export const BASE_URL = resolveBaseUrl();
 
-const TOKEN_KEY = 'access_token';
+const ACCESS_TOKEN_KEY = 'access_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
 
 // ── 오류 ─────────────────────────────────────
 /** status를 함께 들고 다니는 오류. 401이면 세션 만료로 처리한다 */
@@ -71,9 +73,14 @@ const networkError = () =>
 
 // ── 토큰 저장소 ───────────────────────────────
 export const tokenStorage = {
-  get: () => AsyncStorage.getItem(TOKEN_KEY),
-  set: (token: string) => AsyncStorage.setItem(TOKEN_KEY, token),
-  remove: () => AsyncStorage.removeItem(TOKEN_KEY),
+  get: () => AsyncStorage.getItem(ACCESS_TOKEN_KEY),
+  getRefresh: () => AsyncStorage.getItem(REFRESH_TOKEN_KEY),
+  setTokens: (accessToken: string, refreshToken: string) =>
+    AsyncStorage.multiSet([
+      [ACCESS_TOKEN_KEY, accessToken],
+      [REFRESH_TOKEN_KEY, refreshToken],
+    ]),
+  remove: () => AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]),
 };
 
 // ── 401 처리 훅 ───────────────────────────────
@@ -100,11 +107,40 @@ async function handle<T>(res: Response): Promise<T> {
   const data = await parseBody(res);
 
   if (!res.ok) {
-    if (res.status === 401) onUnauthorized?.();
     throw new ApiError(res.status, data?.message ?? '오류가 발생했습니다.');
   }
 
   return data as T;
+}
+
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = await tokenStorage.getRefresh();
+    if (!refreshToken) return null;
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!response.ok) return null;
+
+      const auth = await parseBody(response) as AuthResponse;
+      await tokenStorage.setTokens(auth.accessToken, auth.refreshToken);
+      return auth.accessToken;
+    } catch {
+      return null;
+    }
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
 }
 
 // ── 기본 fetch 래퍼 ───────────────────────────
@@ -123,6 +159,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw networkError();
   }
 
+  const canRefresh = !path.startsWith('/api/v1/auth/');
+  if (res.status === 401 && canRefresh) {
+    const accessToken = await refreshAccessToken();
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+      res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+    }
+  }
+
+  if (res.status === 401 && canRefresh) onUnauthorized?.();
+
   return handle<T>(res);
 }
 
@@ -140,6 +187,16 @@ async function requestFormData<T>(path: string, formData: FormData): Promise<T> 
     throw networkError();
   }
 
+  if (res.status === 401) {
+    const accessToken = await refreshAccessToken();
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+      res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+    }
+  }
+
+  if (res.status === 401) onUnauthorized?.();
+
   return handle<T>(res);
 }
 
@@ -150,6 +207,12 @@ export const authApi = {
 
   login: (body: LoginRequest) =>
     request<AuthResponse>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+
+  refresh: (refreshToken: string) =>
+    request<AuthResponse>('/api/v1/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    }),
 
   getMe: () =>
     request<UserResponse>('/api/v1/users/me'),
@@ -259,6 +322,12 @@ export const doseApi = {
 
   markSkipped: (doseId: number) =>
     request<MedicationDoseResponse>(`/api/v1/doses/${doseId}/skipped`, { method: 'PUT' }),
+
+  updateBatch: (body: BatchDoseUpdateRequest[]) =>
+    request<MedicationDoseResponse[]>('/api/v1/doses/batch', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
 };
 
 // ── 5. 건강 기록 ──────────────────────────────

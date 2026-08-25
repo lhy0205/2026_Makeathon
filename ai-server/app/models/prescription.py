@@ -5,6 +5,7 @@ from app.models.common import ApiModel
 
 class AnalyzedMedication(ApiModel):
     medication_name: str
+    item_seq: str | None = None
     dosage: float | None = None
     dose_unit: str | None = None
     frequency_per_day: int | None = None
@@ -21,3 +22,4 @@ class PrescriptionAnalysisResult(ApiModel):
     hospital_name: str | None = None
     department_name: str | None = None
     medications: list[AnalyzedMedication] = Field(default_factory=list)
+    image_url: str | None = None

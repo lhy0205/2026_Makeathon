@@ -66,6 +66,13 @@ public class MedicationDose {
         this.takenAt = null;
     }
 
+    public void markMissed() {
+        if (this.doseStatus == DoseStatus.PENDING) {
+            this.doseStatus = DoseStatus.MISSED;
+            this.takenAt = null;
+        }
+    }
+
     public void markReminderSent(LocalDateTime sentAt) {
         this.reminderSentAt = sentAt;
     }

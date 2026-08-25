@@ -56,6 +56,33 @@ public class ChatService {
         return ChatMessageResponse.from(assistantMessage);
     }
 
+    @Transactional
+    public ChatStreamSession startChatStream(Long userId, Long visitId, String content) {
+        Visit visit = visitService.getOwnedVisit(userId, visitId);
+        chatMessageRepository.save(new ChatMessage(visit, ChatRole.USER, content, null));
+
+        List<Medication> medications = findMedicationsForVisit(visitId);
+        ChatAskRequest aiRequest = new ChatAskRequest(
+                visitId,
+                content,
+                medications.stream()
+                        .map(medication -> new ChatAskRequest.MedicationSummary(
+                                medication.getMedicationName(),
+                                formatDosage(medication),
+                                medication.getInstructions()
+                        ))
+                        .toList()
+        );
+
+        return new ChatStreamSession(visit.getId(), aiRequest);
+    }
+
+    @Transactional
+    public void saveStreamedAnswer(Long userId, Long visitId, String content) {
+        Visit visit = visitService.getOwnedVisit(userId, visitId);
+        chatMessageRepository.save(new ChatMessage(visit, ChatRole.ASSISTANT, content, null));
+    }
+
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getChatHistory(Long userId, Long visitId) {
         visitService.getOwnedVisit(userId, visitId);
@@ -85,5 +112,8 @@ public class ChatService {
         return medication.getDoseUnit() == null
                 ? medication.getDosage().toString()
                 : medication.getDosage() + " " + medication.getDoseUnit();
+    }
+
+    public record ChatStreamSession(Long visitId, ChatAskRequest aiRequest) {
     }
 }

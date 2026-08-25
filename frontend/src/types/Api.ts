@@ -7,10 +7,12 @@ export interface UserResponse {
   id: number;
   email: string;
   nickname: string;
+  role: 'USER' | 'ADMIN';
 }
 
 export interface AuthResponse {
   accessToken: string;
+  refreshToken: string;
   user: UserResponse;
 }
 
@@ -55,6 +57,7 @@ export type AnalysisStatus = 'UPLOADED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface AnalyzedMedication {
   medicationName: string;
+  itemSeq: string | null;
   dosage: number | null;
   doseUnit: string | null;
   frequencyPerDay: number | null;
@@ -71,10 +74,12 @@ export interface PrescriptionAnalysisResponse {
   hospitalName: string | null;
   departmentName: string | null;
   medications: AnalyzedMedication[];
+  imageUrl: string;
 }
 
 export interface MedicationRequest {
   medicationName: string;
+  itemSeq: string | null;
   dosage: number | null;
   doseUnit: string | null;
   frequencyPerDay: number | null;
@@ -82,11 +87,14 @@ export interface MedicationRequest {
   instructions: string | null;
   purpose: string | null;
   sideEffectSummary: string | null;
+  confidence: number | null;
+  unmatched: boolean;
 }
 
 export interface MedicationResponse {
   id: number;
   medicationName: string;
+  itemSeq: string | null;
   dosage: number | null;
   doseUnit: string | null;
   frequencyPerDay: number | null;
@@ -94,6 +102,8 @@ export interface MedicationResponse {
   instructions: string | null;
   purpose: string | null;
   sideEffectSummary: string | null;
+  confidence: number | null;
+  unmatched: boolean;
 }
 
 export interface PrescriptionResponse {
@@ -115,6 +125,12 @@ export interface MedicationDoseResponse {
   medicationName: string;
   scheduledAt: string;
   doseStatus: DoseStatus;
+  takenAt: string | null;
+}
+
+export interface BatchDoseUpdateRequest {
+  doseId: number;
+  status: 'TAKEN' | 'SKIPPED';
   takenAt: string | null;
 }
 

@@ -52,6 +52,7 @@ export default function PrescriptionScreen({ navigation }: Props) {
   const [visitId, setVisitId] = useState<number | null>(null);
   const [medications, setMedications] = useState<AnalyzedMedication[]>([]);
   const [rawOcrText, setRawOcrText] = useState<string | null>(null);
+  const [storedImageUrl, setStoredImageUrl] = useState<string | null>(null);
   const [departmentName, setDepartmentName] = useState<string | null>(null);
 
   /** 스캔 대상 방문 기록을 확보한다. 재시도할 때는 이미 만든 것을 다시 쓴다 */
@@ -96,6 +97,7 @@ export default function PrescriptionScreen({ navigation }: Props) {
 
       setMedications(analysis.medications);
       setRawOcrText(analysis.rawOcrText);
+      setStoredImageUrl(analysis.imageUrl);
       setDepartmentName(analysis.departmentName);
       setOcrResult({
         patientName: user?.nickname ?? '',
@@ -117,6 +119,7 @@ export default function PrescriptionScreen({ navigation }: Props) {
     setOcrResult(null);
     setMedications([]);
     setRawOcrText(null);
+    setStoredImageUrl(null);
     setDepartmentName(null);
     // visitId는 그대로 둔다 — 다음 사진도 같은 방문 기록에 붙인다
   };
@@ -143,6 +146,7 @@ export default function PrescriptionScreen({ navigation }: Props) {
       departmentName,
       visitedAt: ocrResult.date || toLocalDate(),
       rawOcrText,
+      imageUrl: storedImageUrl,
       medications,
       imageUri,
     });

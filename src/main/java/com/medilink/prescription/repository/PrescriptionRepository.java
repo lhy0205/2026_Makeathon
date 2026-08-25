@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface PrescriptionRepository extends JpaRepository<Prescription, Long> {
 
     Optional<Prescription> findFirstByVisitIdOrderByCreatedAtDesc(Long visitId);
+
+    Optional<Prescription> findByIdAndVisitUserId(Long id, Long userId);
 }

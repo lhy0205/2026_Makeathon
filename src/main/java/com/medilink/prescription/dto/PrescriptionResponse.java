@@ -20,10 +20,14 @@ public record PrescriptionResponse(
             Prescription prescription,
             List<MedicationResponse> medications
     ) {
+        String imageUrl = prescription.getImageUrl() == null
+                ? null
+                : "/api/v1/prescriptions/" + prescription.getId() + "/image";
+
         return new PrescriptionResponse(
                 prescription.getId(),
                 prescription.getVisit().getId(),
-                prescription.getImageUrl(),
+                imageUrl,
                 prescription.getRawOcrText(),
                 prescription.getAnalysisStatus(),
                 prescription.getAnalyzedAt(),

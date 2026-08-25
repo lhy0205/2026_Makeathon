@@ -17,6 +17,7 @@ public class MockAiClient implements AiClient {
     public PrescriptionAnalysisResult analyzePrescription(MultipartFile image) {
         AnalyzedMedication medication = new AnalyzedMedication(
                 "예시약",
+                "199900001",
                 BigDecimal.ONE,
                 "정",
                 3,
@@ -32,7 +33,8 @@ public class MockAiClient implements AiClient {
                 "Mock OCR 결과",
                 "예시병원",
                 "내과",
-                List.of(medication)
+                List.of(medication),
+                null
         );
     }
 }

@@ -35,6 +35,9 @@ public class Medication {
     @Column(name = "medication_name", nullable = false)
     private String medicationName;
 
+    @Column(name = "item_seq", length = 20)
+    private String itemSeq;
+
     @Column(precision = 10, scale = 2)
     private BigDecimal dosage;
 
@@ -56,6 +59,12 @@ public class Medication {
     @Column(name = "side_effect_summary", columnDefinition = "TEXT")
     private String sideEffectSummary;
 
+    @Column(name = "ocr_confidence")
+    private Double ocrConfidence;
+
+    @Column(name = "ocr_unmatched", nullable = false)
+    private boolean ocrUnmatched;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -63,16 +72,20 @@ public class Medication {
     public Medication(
             Prescription prescription,
             String medicationName,
+            String itemSeq,
             BigDecimal dosage,
             String doseUnit,
             Integer frequencyPerDay,
             Integer durationDays,
             String instructions,
             String purpose,
-            String sideEffectSummary
+            String sideEffectSummary,
+            Double ocrConfidence,
+            boolean ocrUnmatched
     ) {
         this.prescription = prescription;
         this.medicationName = medicationName;
+        this.itemSeq = itemSeq;
         this.dosage = dosage;
         this.doseUnit = doseUnit;
         this.frequencyPerDay = frequencyPerDay;
@@ -80,19 +93,25 @@ public class Medication {
         this.instructions = instructions;
         this.purpose = purpose;
         this.sideEffectSummary = sideEffectSummary;
+        this.ocrConfidence = ocrConfidence;
+        this.ocrUnmatched = ocrUnmatched;
     }
 
     public void update(
             String medicationName,
+            String itemSeq,
             BigDecimal dosage,
             String doseUnit,
             Integer frequencyPerDay,
             Integer durationDays,
             String instructions,
             String purpose,
-            String sideEffectSummary
+            String sideEffectSummary,
+            Double ocrConfidence,
+            boolean ocrUnmatched
     ) {
         this.medicationName = medicationName;
+        this.itemSeq = itemSeq;
         this.dosage = dosage;
         this.doseUnit = doseUnit;
         this.frequencyPerDay = frequencyPerDay;
@@ -100,5 +119,7 @@ public class Medication {
         this.instructions = instructions;
         this.purpose = purpose;
         this.sideEffectSummary = sideEffectSummary;
+        this.ocrConfidence = ocrConfidence;
+        this.ocrUnmatched = ocrUnmatched;
     }
 }
