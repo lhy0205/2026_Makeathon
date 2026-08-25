@@ -24,7 +24,6 @@ import type {
   TreatmentComparisonChartResponse,
   TreatmentSummaryResponse,
   UserResponse,
-  VisitHistoryItem,
   VisitRequest,
   VisitResponse,
 } from '../types/Api';
@@ -187,9 +186,14 @@ export const visitApi = {
       body: JSON.stringify({ completedAt }),
     }),
 
-  /** 비교 대상으로 고를 수 있는 지난 방문 목록 */
-  getHistory: () =>
-    request<VisitHistoryItem[]>('/api/v1/visits/history'),
+  /**
+   * 비교 대상으로 고를 수 있는 지난 방문 목록.
+   * symptomCategory는 진료과명으로 부분 일치시킨다 — 빈 문자열이면 전체가 나온다.
+   */
+  getHistory: (symptomCategory = '') =>
+    request<VisitResponse[]>(
+      `/api/v1/visits/history?symptomCategory=${encodeURIComponent(symptomCategory)}`,
+    ),
 };
 
 // ── 3. 처방전·약 ──────────────────────────────

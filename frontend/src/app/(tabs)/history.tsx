@@ -9,6 +9,13 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+/** 기록이 쌓인 뒤에 보는 화면들 */
+const LINKS = [
+  { href: '/report' as const,     icon: '📋', label: '진료 리포트' },
+  { href: '/trend' as const,      icon: '📈', label: '회복 추이' },
+  { href: '/comparison' as const, icon: '⇄',  label: '치료 비교' },
+];
+
 export default function HistoryTab() {
   const router = useRouter();
   const { visit, loading: visitLoading } = useActiveVisit();
@@ -80,6 +87,21 @@ export default function HistoryTab() {
               <Text style={styles.secondaryText}>상태 기록하기</Text>
             </LinearGradient>
           </TouchableOpacity>
+
+          {/* 쌓인 기록으로 보는 것들 */}
+          <View style={styles.linkRow}>
+            {LINKS.map((link) => (
+              <TouchableOpacity
+                key={link.href}
+                style={styles.link}
+                onPress={() => router.push(link.href)}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.linkIcon}>{link.icon}</Text>
+                <Text style={styles.linkText}>{link.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -167,5 +189,27 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.primary,
     letterSpacing: 0.3,
+  },
+
+  linkRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  link: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  linkIcon: { fontSize: 18 },
+  linkText: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
+    color: COLORS.textPrimary,
   },
 });

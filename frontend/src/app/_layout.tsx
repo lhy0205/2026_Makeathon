@@ -22,6 +22,9 @@ export default function RootLayout() {
           <Stack.Screen name="statuscheck" />
           <Stack.Screen name="medlog" />
           <Stack.Screen name="sideeffect" />
+          <Stack.Screen name="report" />
+          <Stack.Screen name="trend" />
+          <Stack.Screen name="comparison" />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>

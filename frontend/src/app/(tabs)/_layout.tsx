@@ -1,4 +1,6 @@
 import { COLORS, TYPOGRAPHY } from '@/src/constants/theme';
+import { useAuth } from '@/src/context/AuthContext';
+import { usePushRegistration } from '@/src/hooks/usePushRegistration';
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +15,10 @@ const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+
+  // 로그인한 뒤에 복약 알림 토큰을 등록한다
+  usePushRegistration(user != null);
 
   return (
     <Tabs
