@@ -70,8 +70,8 @@ export const MOCK_PRESCRIPTIONS: Prescription[] = [
     date: '2024-11-11',
     hospital: '서울내과의원',
     medications: [
-      { name: '아물로디핀', dosage: '5mg', frequency: '1일 1회', days: 30 },
-      { name: '로사르탄', dosage: '50mg', frequency: '1일 1회', days: 30 },
+      { name: '아물로디핀', dosage: '5mg', frequency: '1일 1회', days: 7 },
+      { name: '로사르탄', dosage: '50mg', frequency: '1일 1회', days: 7 },
     ],
     imageUri: null,
   },

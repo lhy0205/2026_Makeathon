@@ -1,6 +1,7 @@
 import { COLORS, TYPOGRAPHY } from '@/src/constants/theme';
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Android 호환 텍스트 아이콘
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
@@ -11,6 +12,8 @@ const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
 };
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={({ route }) => ({
@@ -20,9 +23,9 @@ export default function TabLayout() {
         tabBarStyle: {
           borderTopColor: COLORS.border,
           backgroundColor: COLORS.white,
-          height: 50,
-          paddingBottom: 4,
-          paddingTop: 4,
+          height: 56 + insets.bottom,
+          paddingBottom: insets.bottom + 6,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontSize: TYPOGRAPHY.xs,

@@ -2,6 +2,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -45,8 +46,11 @@ export default function LoginScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.logoSection}>
-          <Text style={styles.logoEmoji}>🔗</Text>
-          <Text style={styles.logoText}>Medi-Self</Text>
+          <Image
+            source={require('../../assets/images/first.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
 
         <View style={styles.card}>
@@ -118,16 +122,10 @@ const styles = StyleSheet.create({
   logoSection: {
     alignItems: 'center',
     marginBottom: SPACING.xxxl,
-    gap: SPACING.sm,
   },
-  logoEmoji: {
-    fontSize: 64,
-  },
-  logoText: {
-    fontSize: TYPOGRAPHY.xl,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.primary,
-    letterSpacing: 0.5,
+  logo: {
+    width: 140,
+    height: 140,
   },
 
   card: {
