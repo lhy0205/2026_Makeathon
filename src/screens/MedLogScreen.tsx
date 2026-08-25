@@ -29,7 +29,7 @@ export default function MedLogScreen() {
           : {
               ...g,
               items: g.items.map((item, ii) =>
-                ii !== itemIdx ? item : { ...item, taken: !item.taken }
+                ii !== itemIdx ? item : { ...item, status: item.status === 'TAKEN' ? 'PENDING' as const : 'TAKEN' as const }
               ),
             }
       )
@@ -72,16 +72,16 @@ export default function MedLogScreen() {
             {group.items.map((item, ii) => (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.itemRow, item.taken && styles.itemRowTaken]}
+                style={[styles.itemRow, item.status === 'TAKEN' && styles.itemRowTaken]}
                 onPress={() => toggleItem(gi, ii)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.checkbox, item.taken && styles.checkboxDone]}>
-                  {item.taken && <Text style={styles.checkmark}>✓</Text>}
+                <View style={[styles.checkbox, item.status === 'TAKEN' && styles.checkboxDone]}>
+                  {item.status === 'TAKEN' && <Text style={styles.checkmark}>✓</Text>}
                 </View>
                 <View style={styles.itemInfo}>
-                  <Text style={[styles.itemTime, item.taken && styles.itemTimeTaken]}>
-                    {item.time} {item.taken ? '복용 완료' : '복용 미완료'}
+                  <Text style={[styles.itemTime, item.status === 'TAKEN' && styles.itemTimeTaken]}>
+                    {item.time} {item.status === 'TAKEN' ? '복용 완료' : '복용 미완료'}
                   </Text>
                   <Text style={styles.itemName}>
                     {item.name} {item.dosage}

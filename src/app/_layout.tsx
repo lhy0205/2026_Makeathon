@@ -14,6 +14,7 @@ export default function RootLayout() {
         <Stack.Screen name="signup" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="prescription" />
+        <Stack.Screen name="register-chat" />
         <Stack.Screen name="medcheck" />
         <Stack.Screen name="medcheckpage" />
         <Stack.Screen name="statuscheck" />

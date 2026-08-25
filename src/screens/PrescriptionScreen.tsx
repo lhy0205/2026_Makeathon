@@ -1,5 +1,6 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OcrResultForm from '../components/OcrResultForm';
+import { MOCK_USER } from '../constants/mockData';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
 import type { HomeStackParamList, OcrResult } from '../types';
 
@@ -22,18 +24,26 @@ type Props = {
 
 type ScanState = 'idle' | 'scanning' | 'done';
 
-// TODO: 실제 OCR API 연동 시 교체
+const pad = (n: number) => String(n).padStart(2, '0');
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+// TODO: prescriptionApi.scan() 으로 교체.
+//       병원명·진료과·날짜까지 OCR이 인식하므로 사용자가 손으로 넣을 값은 없다.
 async function mockOcrAnalyze(imageUri: string): Promise<OcrResult> {
   await new Promise((r) => setTimeout(r, 1500)); // 1.5초 딜레이 시뮬레이션
   return {
-    patientName: '',
-    date: '',
-    hospital: '',
-    medications: '',
+    patientName: MOCK_USER.name,
+    date: todayStr(),
+    hospital: '서울피부과의원',
+    medications: '메디론정 4mg, 세티리진정 10mg',
   };
 }
 
 export default function PrescriptionScreen({ navigation }: Props) {
+  const router = useRouter();
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
@@ -77,13 +87,18 @@ export default function PrescriptionScreen({ navigation }: Props) {
     setOcrResult(null);
   };
 
+  // 저장은 대화 뒤에 한다. 여기서는 인식 결과만 들고 다음 단계로 넘긴다
   const handleConfirm = () => {
-    Alert.alert(
-      '처방전 등록 완료',
-      '처방전이 등록되었습니다.',
-      [{ text: '확인', onPress: () => navigation.goBack() }],
-    );
+    router.push({
+      pathname: '/register-chat',
+      params: {
+        hospital: ocrResult?.hospital ?? '',
+        date: ocrResult?.date ?? '',
+      },
+    });
   };
+
+  const ready = scanState === 'done';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -144,24 +159,24 @@ export default function PrescriptionScreen({ navigation }: Props) {
           editable={scanState === 'done'}
         />
 
-        {/* 하단 버튼 */}
-        {scanState === 'done' && (
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={styles.retakeBtn}
-              onPress={handleRetake}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.retakeBtnText}>다시 선택</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.confirmBtn}
-              onPress={handleConfirm}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.confirmBtnText}>확인</Text>
-            </TouchableOpacity>
-          </View>
+        {/* 다시 선택 */}
+        {ready && (
+          <TouchableOpacity style={styles.retakeBtn} onPress={handleRetake} activeOpacity={0.8}>
+            <Text style={styles.retakeBtnText}>다시 선택</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* 완료 — 사진을 올려 인식이 끝나야 눌린다 */}
+        <TouchableOpacity
+          style={[styles.confirmBtn, !ready && styles.confirmBtnOff]}
+          onPress={handleConfirm}
+          disabled={!ready}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.confirmBtnText, !ready && styles.confirmBtnTextOff]}>다음</Text>
+        </TouchableOpacity>
+        {!ready && (
+          <Text style={styles.confirmHint}>처방전 사진을 올리면 다음으로 넘어갈 수 있어요</Text>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -259,10 +274,10 @@ const styles = StyleSheet.create({
   },
 
   // 하단 버튼
-  buttonRow: { flexDirection: 'row', gap: SPACING.sm },
   retakeBtn: {
-    flex: 1,
-    paddingVertical: SPACING.md,
+    alignSelf: 'center',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
     borderColor: COLORS.primary,
@@ -274,16 +289,28 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   confirmBtn: {
-    flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.base,
+    borderRadius: RADIUS.round,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     ...SHADOW.md,
   },
+  confirmBtnOff: {
+    backgroundColor: COLORS.border,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   confirmBtnText: {
-    fontSize: TYPOGRAPHY.base,
-    fontWeight: TYPOGRAPHY.semibold,
+    fontSize: TYPOGRAPHY.md,
+    fontWeight: TYPOGRAPHY.bold,
     color: COLORS.white,
+    letterSpacing: 0.3,
+  },
+  confirmBtnTextOff: { color: COLORS.textPlaceholder },
+  confirmHint: {
+    textAlign: 'center',
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
+    marginTop: -SPACING.sm,
   },
 });

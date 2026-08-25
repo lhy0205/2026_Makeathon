@@ -21,19 +21,20 @@ const TAKEN_DOSES = DOSES_PER_DAY * DAYS_DONE;
 
 export default function HistoryTab() {
   const router = useRouter();
-  const percent = Math.round((TAKEN_DOSES / TOTAL_DOSES) * 100);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.body}>
-        <Text style={styles.recoveryText}>
-          <Text style={styles.recoveryPercent}>{percent}%</Text> 회복 중이에요!
-        </Text>
+        {/* 로고 배지 + 라벨 — 왼쪽 정렬 */}
+        <View style={styles.labelRow}>
+          <Text style={styles.logo}>💊</Text>
+          <Text style={styles.label}>복약 완료 관리</Text>
+        </View>
 
         <PillHourglass total={TOTAL_DOSES} taken={TAKEN_DOSES} />
 
         <View style={styles.actions}>
-          {/* 복약 체크 */}
+          {/* 복약 기록 */}
           <TouchableOpacity
             style={styles.primaryShadow}
             onPress={() => router.push('/medcheckpage')}
@@ -45,11 +46,11 @@ export default function HistoryTab() {
               end={{ x: 0, y: 1 }}
               style={styles.btn}
             >
-              <Text style={styles.primaryText}>복약 체크하기</Text>
+              <Text style={styles.primaryText}>복약 기록하기</Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* 상태 체크 */}
+          {/* 상태 기록 */}
           <TouchableOpacity
             style={styles.secondaryShadow}
             onPress={() => router.push('/statuscheck')}
@@ -61,7 +62,7 @@ export default function HistoryTab() {
               end={{ x: 0, y: 1 }}
               style={[styles.btn, styles.secondaryBorder]}
             >
-              <Text style={styles.secondaryText}>상태 체크하기</Text>
+              <Text style={styles.secondaryText}>상태 기록하기</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -77,17 +78,22 @@ const styles = StyleSheet.create({
     gap: SPACING.md, paddingHorizontal: SPACING.xl,
   },
 
-  recoveryText: {
-    fontSize: 26,
+  labelRow: {
+    // 부모의 alignItems:'center'를 무시하고 전체 폭을 차지해야 왼쪽에 붙는다
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs + 2,
+  },
+  logo: {
+    fontSize: 20,
+  },
+  label: {
+    fontSize: TYPOGRAPHY.md,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.textPrimary,
+    letterSpacing: 0.2,
   },
-  recoveryPercent: {
-    fontSize: 38,
-    fontWeight: TYPOGRAPHY.extrabold,
-    color: COLORS.textPrimary,
-  },
-
   actions: {
     width: '100%',
     gap: SPACING.md,
@@ -96,7 +102,7 @@ const styles = StyleSheet.create({
 
   btn: {
     borderRadius: RADIUS.round,
-    paddingVertical: SPACING.base,
+    paddingVertical: SPACING.lg,
     alignItems: 'center',
   },
 
@@ -109,7 +115,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   primaryText: {
-    fontSize: TYPOGRAPHY.base,
+    fontSize: TYPOGRAPHY.md,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.white,
     letterSpacing: 0.3,
@@ -128,7 +134,7 @@ const styles = StyleSheet.create({
     borderColor: '#CFE0F2',
   },
   secondaryText: {
-    fontSize: TYPOGRAPHY.base,
+    fontSize: TYPOGRAPHY.md,
     fontWeight: TYPOGRAPHY.bold,
     color: COLORS.primary,
     letterSpacing: 0.3,

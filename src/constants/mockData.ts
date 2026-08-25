@@ -69,6 +69,7 @@ export const MOCK_PRESCRIPTIONS: Prescription[] = [
     patientName: '김철수',
     date: '2024-11-11',
     hospital: '서울내과의원',
+    reason: '고혈압',
     medications: [
       { name: '아물로디핀', dosage: '5mg', frequency: '1일 1회', days: 7 },
       { name: '로사르탄', dosage: '50mg', frequency: '1일 1회', days: 7 },
@@ -80,6 +81,7 @@ export const MOCK_PRESCRIPTIONS: Prescription[] = [
     patientName: '김철수',
     date: '2024-11-01',
     hospital: '강남이비인후과',
+    reason: '감기',
     medications: [
       { name: '타이레놀', dosage: '500mg', frequency: '1일 3회', days: 5 },
       { name: '아목시실린', dosage: '250mg', frequency: '1일 3회', days: 5 },
@@ -150,15 +152,17 @@ export const MOCK_MED_CHECK: MedCheckGroup[] = [
   {
     period: '아침',
     items: [
-      { id: 'mc_001', name: 'A 약', dosage: '10mg', time: '오전 8:00', taken: true },
-      { id: 'mc_002', name: 'B 약', dosage: '100mg', time: '오전 8:00', taken: true },
+      { id: 'mc_001', rxId: 'rx_001', name: '아물로디핀', dosage: '5mg',   time: '오전 8:00', status: 'TAKEN' },
+      { id: 'mc_002', rxId: 'rx_002', name: '타이레놀',   dosage: '500mg', time: '오전 8:00', status: 'TAKEN' },
+      { id: 'mc_003', rxId: 'rx_002', name: '아목시실린', dosage: '250mg', time: '오전 8:00', status: 'SKIPPED' },
     ],
   },
   {
     period: '저녁',
     items: [
-      { id: 'mc_003', name: 'A 약', dosage: '10mg', time: '오후 7:00', taken: false },
-      { id: 'mc_004', name: 'C 약', dosage: '100mg', time: '오후 8:00', taken: false },
+      { id: 'mc_004', rxId: 'rx_001', name: '로사르탄',   dosage: '50mg',  time: '오후 7:00', status: 'PENDING' },
+      { id: 'mc_005', rxId: 'rx_002', name: '타이레놀',   dosage: '500mg', time: '오후 8:00', status: 'PENDING' },
+      { id: 'mc_006', rxId: 'rx_002', name: '아목시실린', dosage: '250mg', time: '오후 8:00', status: 'PENDING' },
     ],
   },
 ];

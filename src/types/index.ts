@@ -23,6 +23,7 @@ export interface Prescription {
   patientName: string;
   date: string;           // 'YYYY-MM-DD'
   hospital: string;
+  reason: string;         // 방문 사유. 서버의 VisitResponse.visitReason 에 대응
   medications: Medication[];
   imageUri: string | null;
 }
@@ -59,12 +60,16 @@ export interface ChatMessage {
 }
 
 // ── MedicationCheck ───────────────────────────
+/** 서버 DoseStatus와 같은 값을 쓴다 (types/Api.ts) */
+export type MedCheckStatus = 'PENDING' | 'TAKEN' | 'SKIPPED' | 'MISSED';
+
 export interface MedCheckItem {
   id: string;
+  rxId: string;           // 어느 처방전(병원)의 약인지
   name: string;
   dosage: string;
   time: string;           // '오전 8:00' 등
-  taken: boolean;
+  status: MedCheckStatus;
 }
 
 export interface MedCheckGroup {
