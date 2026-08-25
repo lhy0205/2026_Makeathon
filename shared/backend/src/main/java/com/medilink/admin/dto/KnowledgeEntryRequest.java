@@ -12,6 +12,8 @@ public record KnowledgeEntryRequest(
         String medicationName,
 
         String purpose,
-        String sideEffects
+        String sideEffects,
+        /** 음주·식전식후 등 생활습관 안내 */
+        String precautions
 ) {
 }

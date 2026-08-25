@@ -82,7 +82,8 @@ public class AdminService {
                 request.itemSeq(),
                 request.medicationName(),
                 request.purpose(),
-                request.sideEffects()
+                request.sideEffects(),
+                request.precautions()
         );
 
         return KnowledgeEntryResponse.from(knowledgeEntryRepository.save(entry));
@@ -95,7 +96,8 @@ public class AdminService {
                 request.itemSeq(),
                 request.medicationName(),
                 request.purpose(),
-                request.sideEffects()
+                request.sideEffects(),
+                request.precautions()
         );
 
         return KnowledgeEntryResponse.from(entry);
@@ -113,7 +115,8 @@ public class AdminService {
                         entry.getItemSeq(),
                         entry.getMedicationName(),
                         entry.getPurpose(),
-                        entry.getSideEffects()
+                        entry.getSideEffects(),
+                        entry.getPrecautions()
                 ))
                 .toList();
 

@@ -98,6 +98,8 @@ export interface KnowledgeEntry {
   medicationName: string;
   purpose: string | null;
   sideEffects: string | null;
+  /** 음주·식전식후·자몽 같은 생활습관 안내 */
+  precautions: string | null;
   updatedAt: string;
 }
 
@@ -106,6 +108,7 @@ export interface KnowledgeEntryInput {
   medicationName: string;
   purpose: string | null;
   sideEffects: string | null;
+  precautions: string | null;
 }
 
 export interface KnowledgeReindexResponse {

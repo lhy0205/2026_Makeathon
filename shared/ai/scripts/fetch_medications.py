@@ -56,25 +56,46 @@ def _clean(value: str | None) -> str:
 
 
 def fetch_page(client: httpx.Client, service_key: str, page: int) -> tuple[list[dict], int]:
-    response = client.get(
-        API_URL,
-        params={
-            "serviceKey": service_key,
-            "pageNo": page,
-            "numOfRows": PAGE_SIZE,
-            "type": "json",
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
+    try:
+        response = client.get(
+            API_URL,
+            params={
+                "serviceKey": service_key,
+                "pageNo": page,
+                "numOfRows": PAGE_SIZE,
+                "type": "json",
+            },
+            timeout=30,
+        )
+    except httpx.RequestError as e:
+        raise SystemExit(f"공공데이터포털에 연결하지 못했습니다: {e}")
 
-    # 인증 실패나 한도 초과는 200에 XML 에러 본문으로 온다
+    # 키가 틀렸거나 아직 승인 전이면 403이 온다
+    if response.status_code == 403:
+        raise SystemExit(
+            "403 - 서비스 키가 거절됐습니다. 아래를 확인하세요.\n"
+            "  1. data.go.kr에서 '의약품개요정보(e약은요)' 활용신청이 승인됐는지.\n"
+            "     신청 직후에는 반영까지 시간이 걸립니다.\n"
+            "  2. 디코딩 키를 넣었는지. 인코딩된 키를 넣으면 한 번 더\n"
+            "     인코딩되어 인증에 실패합니다.\n"
+            f"  넣은 키 앞 8자: {service_key[:8]}..."
+        )
+
+    if response.status_code == 429:
+        raise SystemExit("429 - 호출 한도를 넘었습니다. 잠시 뒤 다시 시도하세요.")
+
+    if response.status_code >= 400:
+        raise SystemExit(
+            f"{response.status_code} 응답을 받았습니다.\n  {response.text[:300]}"
+        )
+
+    # 한도 초과 같은 일부 오류는 200에 XML 본문으로 오기도 한다
     try:
         payload = response.json()
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, ValueError):
         raise SystemExit(
             "JSON이 아닌 응답을 받았습니다. 서비스 키가 맞는지 확인하세요.\n"
-            f"응답 앞부분: {response.text[:300]}"
+            f"  응답 앞부분: {response.text[:300]}"
         )
 
     body = payload.get("body") or {}

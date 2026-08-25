@@ -33,24 +33,32 @@ public class KnowledgeEntry extends BaseTimeEntity {
     @Column(name = "side_effects", columnDefinition = "TEXT")
     private String sideEffects;
 
+    // 음주·식전식후·자몽·운전 같은 생활습관 안내가 들어간다.
+    // RAG 검색이 이 내용으로 답하는 질문이 많아 색인에 함께 싣는다.
+    @Column(columnDefinition = "TEXT")
+    private String precautions;
+
     public KnowledgeEntry(
             String itemSeq,
             String medicationName,
             String purpose,
-            String sideEffects
+            String sideEffects,
+            String precautions
     ) {
-        update(itemSeq, medicationName, purpose, sideEffects);
+        update(itemSeq, medicationName, purpose, sideEffects, precautions);
     }
 
     public void update(
             String itemSeq,
             String medicationName,
             String purpose,
-            String sideEffects
+            String sideEffects,
+            String precautions
     ) {
         this.itemSeq = itemSeq;
         this.medicationName = medicationName;
         this.purpose = purpose;
         this.sideEffects = sideEffects;
+        this.precautions = precautions;
     }
 }

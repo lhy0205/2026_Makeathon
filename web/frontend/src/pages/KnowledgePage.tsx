@@ -12,6 +12,7 @@ const EMPTY: KnowledgeEntryInput = {
   medicationName: '',
   purpose: '',
   sideEffects: '',
+  precautions: '',
 };
 
 export default function KnowledgePage() {
@@ -53,6 +54,7 @@ export default function KnowledgePage() {
       medicationName: entry.medicationName,
       purpose: entry.purpose ?? '',
       sideEffects: entry.sideEffects ?? '',
+      precautions: entry.precautions ?? '',
     });
     setFormError('');
   };
@@ -79,6 +81,7 @@ export default function KnowledgePage() {
         medicationName: form.medicationName.trim(),
         purpose: form.purpose?.trim() || null,
         sideEffects: form.sideEffects?.trim() || null,
+        precautions: form.precautions?.trim() || null,
       };
 
       if (editingId != null) await adminApi.updateKnowledge(editingId, body);
@@ -188,6 +191,20 @@ export default function KnowledgePage() {
                 onChange={(e) => setForm({ ...form, sideEffects: e.target.value })}
                 placeholder="자주 보고되는 부작용"
               />
+            </div>
+
+            <div className="field">
+              <label className="field-label" htmlFor="precautions">복용 시 주의사항</label>
+              <textarea
+                id="precautions"
+                className="textarea"
+                value={form.precautions ?? ''}
+                onChange={(e) => setForm({ ...form, precautions: e.target.value })}
+                placeholder="음주, 식전·식후, 함께 먹으면 안 되는 음식, 운전 주의 등"
+              />
+              <p className="field-hint">
+                챗봇이 &lsquo;술 마셔도 되나요&rsquo; 같은 질문에 답할 때 이 내용을 찾습니다.
+              </p>
             </div>
 
             {formError && <p className="form-error" role="alert">{formError}</p>}

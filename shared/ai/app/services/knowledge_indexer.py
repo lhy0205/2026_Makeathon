@@ -64,7 +64,21 @@ def _documents_from_entries(entries: list[KnowledgeEntryInput]) -> list[Document
 
 
 def reindex_knowledge_base(entries: list[KnowledgeEntryInput] | None = None) -> tuple[int, int]:
-    documents = _documents_from_entries(entries) if entries else _load_documents()
+    """저장소의 medications.json을 바탕으로 삼고, 관리자가 등록한 항목을 얹는다.
+
+    예전에는 entries가 오면 그것만 색인했는데, 그러면 관리자가 재색인 버튼을
+    한 번 누르는 것만으로 기본 지식베이스가 통째로 날아갔다.
+    (실제로 35건이 1건으로 바뀌어 '아목시실린'을 물으면 '타이레놀'이 나왔다)
+    같은 약 이름은 관리자가 등록한 쪽을 쓴다.
+    """
+    documents = _load_documents()
+
+    if entries:
+        managed = _documents_from_entries(entries)
+        overridden = {doc.metadata.get("title") for doc in managed}
+        documents = [
+            doc for doc in documents if doc.metadata.get("title") not in overridden
+        ] + managed
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_documents(documents)
 

@@ -16,6 +16,9 @@ class KnowledgeEntryInput(BaseModel):
     medication_name: str
     purpose: str | None = None
     side_effects: str | None = None
+    # 생활습관 관련 안내(음주·식전식후·자몽·운전 등)가 여기 담긴다.
+    # 검색으로 답해야 하는 질문의 상당수가 이 필드에서 나온다.
+    precautions: str | None = None
 
 
 class ReindexRequest(BaseModel):

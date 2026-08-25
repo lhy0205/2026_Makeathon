@@ -10,6 +10,7 @@ public record KnowledgeEntryResponse(
         String medicationName,
         String purpose,
         String sideEffects,
+        String precautions,
         LocalDateTime updatedAt
 ) {
 
@@ -20,6 +21,7 @@ public record KnowledgeEntryResponse(
                 entry.getMedicationName(),
                 entry.getPurpose(),
                 entry.getSideEffects(),
+                entry.getPrecautions(),
                 entry.getUpdatedAt()
         );
     }

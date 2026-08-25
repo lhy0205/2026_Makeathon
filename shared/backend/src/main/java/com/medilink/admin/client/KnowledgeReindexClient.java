@@ -48,7 +48,8 @@ public class KnowledgeReindexClient {
             String itemSeq,
             String medicationName,
             String purpose,
-            String sideEffects
+            String sideEffects,
+            String precautions
     ) {
     }
 }
