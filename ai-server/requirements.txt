@@ -14,3 +14,4 @@ langgraph>=0.2
 chromadb>=0.5
 pytesseract>=0.3.10
 pillow>=10.0
+rapidfuzz>=3.9

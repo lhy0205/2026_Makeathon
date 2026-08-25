@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     tessdata_dir: str = "./tessdata"
     tesseract_cmd: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     knowledge_base_dir: str = "./app/data/knowledge_base"
+    # 약 이름 매칭 결과를 남기는 곳. 관리자 화면이 실패 목록을 여기서 읽는다
+    match_log_path: str = "./data/match_log.jsonl"
 
 
 settings = Settings()

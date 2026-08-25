@@ -15,3 +15,4 @@ ai-server/**/__pycache__/
 ai-server/chroma_db/
 ai-server/tessdata/
 ai-server/.env
+ai-server/data/

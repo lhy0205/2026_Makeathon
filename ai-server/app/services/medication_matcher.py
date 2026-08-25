@@ -1,36 +1,224 @@
+"""OCR로 읽은 약 이름을 지식베이스의 약과 맞춰 효능·부작용을 채운다.
+
+문자열 거리를 주 경로로 쓰고, 벡터 검색은 아주 높은 점수일 때만 보조로 쓴다.
+원래는 벡터 검색만 썼는데 실측해 보니 약 이름 대조에는 맞지 않았다.
+
+    입력            벡터            퍼지
+    타이레놀        타이레놀 0.74   타이레놀 1.00
+    세티리진        로사르탄 0.66   (없음)  0.30
+    자동차타이어    트리메부틴 0.66 (없음)  0.51
+
+임계값 0.5에서는 '자동차타이어'가 위장약으로 매칭됐다.
+환자에게 엉뚱한 약 정보를 보여주는 건 아무것도 안 보여주는 것보다 나쁘다.
+
+의미 임베딩은 "해열제 뭐 먹어요?" 같은 챗봇 질의에 맞는 도구지,
+표기가 곧 정답인 약 이름 대조용이 아니다.
+성분명으로 처방된 경우(아세트아미노펜 → 타이레놀)는 성분명도 색인해 두어
+문자열 매칭만으로 해결한다.
+"""
+
+import json
+import logging
+import re
+from functools import lru_cache
+from pathlib import Path
+
+from rapidfuzz import fuzz, process
+from rapidfuzz.distance import Levenshtein
+
+from app.config import settings
 from app.schemas.prescription import AnalyzedMedication, ParsedMedication
+from app.services.match_log import record_match
 from app.services.vector_store import get_vector_store
 
-MATCH_THRESHOLD = 0.5
+logger = logging.getLogger(__name__)
+
+# 문자열이 이 정도로 닮았으면 같은 약으로 본다 (0~100). 주 판단 기준이다.
+FUZZY_THRESHOLD = 82
+
+# 짧은 한글 약 이름은 한 글자만 잘못 읽어도 비율 점수가 크게 떨어진다.
+# '타이레놀'→'타이레늘'은 네 글자 중 하나가 틀려 75점밖에 안 나온다.
+# 임계값을 통째로 낮추면 '자동차타이어'(51점) 쪽이 위험해지므로,
+# '몇 글자가 다른가'를 따로 본다.
+_MAX_TYPO_DISTANCE = 1
+_LONG_NAME_LENGTH = 8
+_MAX_TYPO_DISTANCE_LONG = 2
+# 한 글자 차이인 후보가 둘 이상이면 어느 쪽인지 단정할 수 없다.
+# 그때는 매칭하지 않고 사용자에게 맡긴다.
+_AMBIGUITY_MARGIN = 1
+# 벡터 검색은 퍼지가 놓쳤을 때만 본다. 이 점수 아래는 신뢰할 수 없다는 걸
+# 위 실측에서 확인했으므로 아주 보수적으로 잡는다.
+MATCH_THRESHOLD = 0.85
+
+# 제형 표기는 같은 약을 다르게 보이게 만든다. 비교 전에 떼어낸다
+_FORM_SUFFIXES = ("정", "캡슐", "시럽", "산", "액", "주", "연고", "크림", "패치")
+_NOISE = re.compile(r"[\s\(\)\[\]{}<>·:,./\\-]+")
+_TRAILING_DOSE = re.compile(r"\d+(\.\d+)?\s*(mg|밀리그램|g|ml|mcg|정|캡슐)?$", re.IGNORECASE)
+
+
+def normalize(name: str) -> str:
+    """비교용으로만 쓰는 이름. 표시에는 쓰지 않는다."""
+    text = _NOISE.sub("", name).lower()
+    text = _TRAILING_DOSE.sub("", text)
+    for suffix in _FORM_SUFFIXES:
+        if text.endswith(suffix) and len(text) > len(suffix) + 1:
+            text = text[: -len(suffix)]
+            break
+    return text
+
+
+@lru_cache
+def _known_medications() -> dict[str, dict]:
+    """지식베이스의 약 이름을 정규화한 키로 색인해 둔다.
+
+    성분명으로 적힌 처방전도 있어서 이름과 성분 양쪽을 키로 넣는다.
+    """
+    data_file = Path(settings.knowledge_base_dir) / "medications.json"
+    try:
+        entries = json.loads(data_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("지식베이스를 읽지 못했습니다: %s", data_file)
+        return {}
+
+    index: dict[str, dict] = {}
+    for entry in entries:
+        for key in (entry.get("name"), entry.get("ingredient")):
+            if not key:
+                continue
+            normalized = normalize(key)
+            # 이름이 성분보다 우선한다 (여러 약이 성분을 공유할 수 있다)
+            if normalized and normalized not in index:
+                index[normalized] = entry
+    return index
+
+
+def _typo_budget(length: int) -> int:
+    """이 길이의 이름에서 몇 글자까지 잘못 읽힌 걸로 봐줄지."""
+    if length >= _LONG_NAME_LENGTH:
+        return _MAX_TYPO_DISTANCE_LONG
+    if length >= 4:
+        return _MAX_TYPO_DISTANCE
+    # 세 글자 이하는 한 글자만 틀려도 완전히 다른 약이 된다
+    return 0
+
+
+def _typo_lookup(target: str, index: dict[str, dict]) -> dict | None:
+    """OCR이 한두 글자 잘못 읽은 경우를 잡는다.
+
+    후보가 둘 이상 같은 거리에 있으면 고르지 않는다 —
+    비슷한 이름의 다른 약을 집어주는 것보다 모른다고 하는 편이 안전하다.
+    """
+    budget = _typo_budget(len(target))
+    if budget <= 0:
+        return None
+
+    scored = sorted(
+        ((Levenshtein.distance(target, key), key) for key in index),
+        key=lambda pair: pair[0],
+    )
+    if not scored:
+        return None
+
+    best_distance, best_key = scored[0]
+    if best_distance > budget:
+        return None
+
+    if len(scored) > 1 and scored[1][0] - best_distance < _AMBIGUITY_MARGIN:
+        logger.info("이름이 비슷한 후보가 여럿이라 매칭하지 않습니다: %s", target)
+        return None
+
+    return index[best_key]
+
+
+def _fuzzy_lookup(name: str) -> tuple[dict | None, float]:
+    """가장 닮은 약 이름을 찾는다. 점수는 0~1로 맞춰 돌려준다."""
+    index = _known_medications()
+    if not index:
+        return None, 0.0
+
+    target = normalize(name)
+    if not target:
+        return None, 0.0
+
+    # 정확히 같으면 더 볼 것 없다
+    if target in index:
+        return index[target], 1.0
+
+    match = process.extractOne(target, index.keys(), scorer=fuzz.WRatio)
+    score = (match[1] / 100.0) if match else 0.0
+    entry = index[match[0]] if match else None
+
+    if entry is not None and score >= FUZZY_THRESHOLD / 100.0:
+        return entry, score
+
+    # 비율로는 모자라도 글자 한두 개 차이면 OCR 오독으로 본다
+    typo_entry = _typo_lookup(target, index)
+    if typo_entry is not None:
+        return typo_entry, max(score, FUZZY_THRESHOLD / 100.0)
+
+    return entry, score
+
+
+def _vector_lookup(name: str) -> tuple[dict | None, float]:
+    """뜻이 비슷한 약을 찾는다. 벡터 스토어가 없으면 조용히 넘어간다."""
+    try:
+        results = get_vector_store().similarity_search_with_relevance_scores(name, k=1)
+    except Exception:
+        # 임베딩 서버(Ollama)가 꺼져 있어도 문자열 매칭은 살아 있어야 한다
+        logger.warning("벡터 검색을 건너뜁니다.", exc_info=True)
+        return None, 0.0
+
+    if not results:
+        return None, 0.0
+
+    doc, score = results[0]
+    return (
+        {
+            "name": doc.metadata.get("title"),
+            "purpose": doc.metadata.get("purpose"),
+            "side_effects": doc.metadata.get("side_effects"),
+        },
+        max(float(score), 0.0),
+    )
 
 
 def match_medication(parsed: ParsedMedication) -> AnalyzedMedication:
-    """OCR로 추출된 약 이름을 지식베이스 벡터 스토어에서 검색해 효능/부작용 정보를 보강한다."""
-    vector_store = get_vector_store()
-    results = vector_store.similarity_search_with_relevance_scores(parsed.medication_name, k=1)
+    name = parsed.medication_name
 
-    purpose = None
-    side_effect_summary = None
-    confidence = 0.0
-    unmatched = True
+    fuzzy_entry, fuzzy_score = _fuzzy_lookup(name)
 
-    if results:
-        doc, score = results[0]
-        confidence = round(max(score, 0.0), 2)
-        if score >= MATCH_THRESHOLD:
-            unmatched = False
-            purpose = doc.metadata.get("purpose")
-            side_effect_summary = doc.metadata.get("side_effects")
+    if fuzzy_entry is not None and fuzzy_score >= FUZZY_THRESHOLD / 100.0:
+        # 흔한 경우. 벡터 검색은 부르지도 않는다 (임베딩 호출을 아낀다)
+        entry, confidence, method = fuzzy_entry, fuzzy_score, "fuzzy"
+        vector_score = 0.0
+    else:
+        vector_entry, vector_score = _vector_lookup(name)
+        if vector_entry is not None and vector_score >= MATCH_THRESHOLD:
+            entry, confidence, method = vector_entry, vector_score, "vector"
+        else:
+            # 못 찾았어도 더 가까웠던 쪽 점수는 남겨 둔다. 관리자 화면이 이걸 본다
+            entry, confidence, method = None, max(vector_score, fuzzy_score), "none"
+
+    matched_name = entry.get("name") if entry else None
+
+    record_match(
+        query=name,
+        matched=matched_name,
+        method=method,
+        confidence=confidence,
+        vector_score=vector_score,
+        fuzzy_score=fuzzy_score,
+    )
 
     return AnalyzedMedication(
-        medication_name=parsed.medication_name,
+        medication_name=name,
         dosage=parsed.dosage,
         dose_unit=parsed.dose_unit,
         frequency_per_day=parsed.frequency_per_day,
         duration_days=parsed.duration_days,
         instructions=parsed.instructions,
-        purpose=purpose,
-        side_effect_summary=side_effect_summary,
-        confidence=confidence,
-        unmatched=unmatched,
+        purpose=entry.get("purpose") if entry else None,
+        side_effect_summary=entry.get("side_effects") if entry else None,
+        confidence=round(confidence, 2),
+        unmatched=entry is None,
     )
