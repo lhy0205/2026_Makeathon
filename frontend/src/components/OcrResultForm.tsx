@@ -8,6 +8,11 @@ interface Props {
   scanning?: boolean;             // OCR 인식 중 로딩
   onChangeResult?: (updated: OcrResult) => void;
   editable?: boolean;
+  /**
+   * 손으로 고칠 수 있는 항목만 추린다. 지정하지 않으면 editable이 전부에 적용된다.
+   * 약 정보는 서버가 구조화된 형태로 내려주므로 자유 입력으로 덮어쓰지 않는다.
+   */
+  editableKeys?: (keyof OcrResult)[];
 }
 
 const EMPTY_RESULT: OcrResult = {
@@ -24,8 +29,17 @@ const FIELD_LABELS: Array<{ key: keyof OcrResult; label: string; multiline?: boo
   { key: 'medications', label: '약정보', placeholder: '인식된 약 정보가 표시됩니다', multiline: true },
 ];
 
-export default function OcrResultForm({ result, scanning = false, onChangeResult, editable = false }: Props) {
+export default function OcrResultForm({
+  result,
+  scanning = false,
+  onChangeResult,
+  editable = false,
+  editableKeys,
+}: Props) {
   const data = result ?? EMPTY_RESULT;
+
+  const canEdit = (key: keyof OcrResult) =>
+    editable && !scanning && (editableKeys ? editableKeys.includes(key) : true);
 
   const handleChange = (key: keyof OcrResult, value: string) => {
     onChangeResult?.({ ...data, [key]: value });
@@ -50,7 +64,7 @@ export default function OcrResultForm({ result, scanning = false, onChangeResult
             style={[styles.valueInput, multiline && styles.multiline]}
             value={data[key]}
             onChangeText={(v) => handleChange(key, v)}
-            editable={editable && !scanning}
+            editable={canEdit(key)}
             multiline={multiline}
             numberOfLines={multiline ? 3 : 1}
             placeholder={placeholder}

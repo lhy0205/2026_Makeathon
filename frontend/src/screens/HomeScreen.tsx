@@ -1,4 +1,3 @@
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import {
   ScrollView,
@@ -8,14 +7,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MediCalendar from '../components/MediCalendar';
-import { MOCK_USER } from '../constants/mockData';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { useAuth } from '../context/AuthContext';
 import { getHighlightColor } from '../hooks/useCalendar';
-import type { HomeStackParamList } from '../types';
+import type { ScreenNav } from '../types';
 import type { VisitResponse } from '../types/Api';
 
 type Props = {
-  navigation: NativeStackNavigationProp<HomeStackParamList, 'HomeMain'>;
+  navigation: ScreenNav;
 };
 
 const STATUS_LABEL: Record<VisitResponse['treatmentStatus'], string> = {
@@ -25,6 +24,7 @@ const STATUS_LABEL: Record<VisitResponse['treatmentStatus'], string> = {
 };
 
 export default function HomeScreen({ navigation }: Props) {
+  const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedVisits, setSelectedVisits] = useState<VisitResponse[]>([]);
 
@@ -43,7 +43,7 @@ export default function HomeScreen({ navigation }: Props) {
         {/* 헤더 */}
         <View style={styles.headerRow}>
           <Text style={styles.greeting}>
-            <Text style={styles.userName}>{MOCK_USER.name}</Text>님, 안녕하세요!
+            <Text style={styles.userName}>{user?.nickname ?? ''}</Text>님, 안녕하세요!
           </Text>
           <TouchableOpacity>
             <Text style={styles.menuIcon}>≡</Text>
@@ -87,7 +87,7 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={styles.registerQuestion}>오늘 병원에 방문하셨나요?</Text>
           <TouchableOpacity
             style={styles.registerBtn}
-            onPress={() => navigation.navigate('Prescription')}
+            onPress={() => navigation.navigate?.('Prescription')}
             activeOpacity={0.85}
           >
             <Text style={styles.registerBtnText}>등록하러 가기</Text>

@@ -1,4 +1,7 @@
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { prescriptionApi, visitApi } from '@/src/api/Client';
+import { useAuth } from '@/src/context/AuthContext';
+import { setDraft } from '@/src/state/registrationDraft';
+import { toLocalDate } from '@/src/utils/datetime';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -14,43 +17,59 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import OcrResultForm from '../components/OcrResultForm';
-import { MOCK_USER } from '../constants/mockData';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
-import type { HomeStackParamList, OcrResult } from '../types';
+import type { AnalyzedMedication } from '../types/Api';
+import type { OcrResult, ScreenNav } from '../types';
 
 type Props = {
-  navigation: NativeStackNavigationProp<HomeStackParamList, 'Prescription'>;
+  navigation: ScreenNav;
 };
 
 type ScanState = 'idle' | 'scanning' | 'done';
 
-const pad = (n: number) => String(n).padStart(2, '0');
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+/** 서버는 방문 기록이 있어야 처방전을 스캔해준다. 병원명은 인식 후 실제 값으로 덮어쓴다 */
+const PLACEHOLDER_HOSPITAL = '처방전 분석 중';
 
-// TODO: prescriptionApi.scan() 으로 교체.
-//       병원명·진료과·날짜까지 OCR이 인식하므로 사용자가 손으로 넣을 값은 없다.
-async function mockOcrAnalyze(imageUri: string): Promise<OcrResult> {
-  await new Promise((r) => setTimeout(r, 1500)); // 1.5초 딜레이 시뮬레이션
-  return {
-    patientName: MOCK_USER.name,
-    date: todayStr(),
-    hospital: '서울피부과의원',
-    medications: '메디론정 4mg, 세티리진정 10mg',
-  };
+/** 구조화된 약 목록 → 화면에 보여줄 한 줄 요약 */
+function toMedicationText(medications: AnalyzedMedication[]): string {
+  return medications
+    .map((m) => [m.medicationName, m.dosage != null ? `${m.dosage}${m.doseUnit ?? ''}` : null]
+      .filter(Boolean)
+      .join(' '))
+    .join(', ');
 }
 
 export default function PrescriptionScreen({ navigation }: Props) {
   const router = useRouter();
+  const { user } = useAuth();
+
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
 
-  // 갤러리에서 사진 선택
+  // 스캔을 위해 미리 만들어 둔 방문 기록. 저장하지 않고 나가면 지운다
+  const [visitId, setVisitId] = useState<number | null>(null);
+  const [medications, setMedications] = useState<AnalyzedMedication[]>([]);
+  const [rawOcrText, setRawOcrText] = useState<string | null>(null);
+  const [departmentName, setDepartmentName] = useState<string | null>(null);
+
+  /** 스캔 대상 방문 기록을 확보한다. 재시도할 때는 이미 만든 것을 다시 쓴다 */
+  const ensureVisit = async (): Promise<number> => {
+    if (visitId != null) return visitId;
+    const visit = await visitApi.create({
+      hospitalName: PLACEHOLDER_HOSPITAL,
+      departmentName: null,
+      visitedAt: toLocalDate(),
+      visitReason: null,
+      medicationStartDate: null,
+      medicationEndDate: null,
+    });
+    setVisitId(visit.id);
+    return visit.id;
+  };
+
+  // 갤러리에서 사진 선택 → 서버 OCR 분석
   const handlePickImage = async () => {
-    // 갤러리 접근 권한 요청
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.\n설정에서 허용해주세요.');
@@ -58,7 +77,7 @@ export default function PrescriptionScreen({ navigation }: Props) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
     });
@@ -71,13 +90,23 @@ export default function PrescriptionScreen({ navigation }: Props) {
     setOcrResult(null);
 
     try {
-      // OCR 분석 (현재는 mock, 실제 API 연동 시 prescriptionApi.scan() 호출)
-      const ocr = await mockOcrAnalyze(uri);
-      setOcrResult(ocr);
+      const id = await ensureVisit();
+      const analysis = await prescriptionApi.scan(id, uri);
+
+      setMedications(analysis.medications);
+      setRawOcrText(analysis.rawOcrText);
+      setDepartmentName(analysis.departmentName);
+      setOcrResult({
+        patientName: user?.nickname ?? '',
+        date: toLocalDate(),
+        hospital: analysis.hospitalName ?? '',
+        medications: toMedicationText(analysis.medications),
+      });
       setScanState('done');
-    } catch {
+    } catch (e) {
       setScanState('idle');
-      Alert.alert('인식 실패', '처방전을 인식하지 못했습니다. 다시 시도해주세요.');
+      const message = e instanceof Error ? e.message : '처방전을 인식하지 못했습니다.';
+      Alert.alert('인식 실패', `${message}\n다시 시도해주세요.`);
     }
   };
 
@@ -85,17 +114,39 @@ export default function PrescriptionScreen({ navigation }: Props) {
     setScanState('idle');
     setImageUri(null);
     setOcrResult(null);
+    setMedications([]);
+    setRawOcrText(null);
+    setDepartmentName(null);
+    // visitId는 그대로 둔다 — 다음 사진도 같은 방문 기록에 붙인다
+  };
+
+  /** 저장하지 않고 나가면 임시로 만든 방문 기록을 정리한다 */
+  const handleBack = async () => {
+    if (visitId != null) {
+      try {
+        await visitApi.delete(visitId);
+      } catch {
+        // 지우지 못해도 사용자를 붙잡아 둘 이유는 없다
+      }
+    }
+    navigation.goBack?.();
   };
 
   // 저장은 대화 뒤에 한다. 여기서는 인식 결과만 들고 다음 단계로 넘긴다
   const handleConfirm = () => {
-    router.push({
-      pathname: '/register-chat',
-      params: {
-        hospital: ocrResult?.hospital ?? '',
-        date: ocrResult?.date ?? '',
-      },
+    if (visitId == null || !ocrResult) return;
+
+    setDraft({
+      visitId,
+      hospitalName: ocrResult.hospital.trim() || PLACEHOLDER_HOSPITAL,
+      departmentName,
+      visitedAt: ocrResult.date || toLocalDate(),
+      rawOcrText,
+      medications,
+      imageUri,
     });
+
+    router.push('/register-chat');
   };
 
   const ready = scanState === 'done';
@@ -111,7 +162,7 @@ export default function PrescriptionScreen({ navigation }: Props) {
       >
         {/* 헤더 — 홈과 동일한 스타일 */}
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={handleBack}>
             <Text style={styles.backBtnText}>{'< 이전'}</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>처방전 불러오기</Text>
@@ -152,12 +203,20 @@ export default function PrescriptionScreen({ navigation }: Props) {
         )}
 
         {/* OCR 인식 정보 — 항상 표시, 인식 완료 시 자동 채워짐 */}
+        {/* 약 정보는 서버가 구조화해 내려주므로 자유 입력으로 덮어쓰지 않는다 */}
         <OcrResultForm
           result={ocrResult}
           scanning={scanState === 'scanning'}
           onChangeResult={setOcrResult}
           editable={scanState === 'done'}
+          editableKeys={['date', 'hospital']}
         />
+
+        {ready && medications.length === 0 && (
+          <Text style={styles.warnText}>
+            약 정보를 읽지 못했습니다. 사진을 다시 찍어 올려주세요.
+          </Text>
+        )}
 
         {/* 다시 선택 */}
         {ready && (
@@ -271,6 +330,12 @@ const styles = StyleSheet.create({
   rePickBtnText: {
     fontSize: TYPOGRAPHY.sm,
     color: COLORS.textSecondary,
+  },
+
+  warnText: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.error,
+    textAlign: 'center',
   },
 
   // 하단 버튼

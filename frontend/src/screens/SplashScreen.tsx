@@ -1,4 +1,3 @@
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect } from "react";
 import {
   StatusBar,
@@ -7,16 +6,16 @@ import {
   View
 } from 'react-native';
 import { COLORS, SPACING, TYPOGRAPHY } from "../constants/theme";
-import type { RootStackParamList } from "../types";
+import type { ScreenNav } from "../types";
 
 type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Splash'>;
+  navigation: ScreenNav;
 };
 
 export default function SplashScreen({ navigation }: Props) {
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigation.replace('Login');
+      navigation.replace?.('Login');
     }, 2000);
     return () => clearTimeout(timer);
   }, [navigation]);

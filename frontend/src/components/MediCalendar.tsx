@@ -9,7 +9,7 @@ import {
 import { DAY_NAMES, MONTH_NAMES } from '../constants/mockData';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { getHighlightColor, groupVisitsByDate, useCalendar } from '../hooks/useCalendar';
-import type { VisitResponse } from '../types/api';
+import type { VisitResponse } from '../types/Api';
 
 interface Props {
   onDayPress?: (dateStr: string, visits: VisitResponse[]) => void;

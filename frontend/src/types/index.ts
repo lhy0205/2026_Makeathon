@@ -89,6 +89,16 @@ export interface SideEffectItem {
 }
 
 // ── Navigation ────────────────────────────────
+/**
+ * 화면은 expo-router로 이동한다. 아래 파라미터 목록은 화면 props 타입을 잡아둘 때만 쓴다.
+ * 라우트 래퍼가 넘겨주는 최소한의 navigation 모양 — @react-navigation 타입에 기대지 않는다.
+ */
+export interface ScreenNav {
+  navigate?: (name: string) => void;
+  replace?: (name: string) => void;
+  goBack?: () => void;
+}
+
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;

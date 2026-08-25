@@ -1,7 +1,8 @@
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useAuth } from "@/src/context/AuthContext";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -13,26 +14,39 @@ import {
   View,
 } from "react-native";
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from "../constants/theme";
-import type { RootStackParamList } from "../types";
+import type { ScreenNav } from "../types";
 
 type Props = {
-  navigation?: NativeStackNavigationProp<RootStackParamList, 'Login'>;
+  navigation?: ScreenNav;
 };
-
-const MOCK_CREDENTIALS = { email: 'test@medi.com', password: '1234'};
 
 export default function LoginScreen({ navigation }: Props) {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (submitting) return;
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError('이메일과 비밀번호를 입력해주세요.');
+      return;
+    }
+
     setError('');
-    if (email === MOCK_CREDENTIALS.email && password === MOCK_CREDENTIALS.password) {
+    setSubmitting(true);
+    try {
+      await login(trimmedEmail, password);
       router.replace('/(tabs)');
-    } else {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+    } catch (e: any) {
+      // 401이면 서버가 내려주는 문구를, 그 밖에는 연결 실패 문구를 그대로 보여준다
+      setError(e?.message ?? '로그인에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -94,11 +108,14 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
-            style={styles.loginButton}
+            style={[styles.loginButton, submitting && styles.loginButtonOff]}
             onPress={handleLogin}
+            disabled={submitting}
             activeOpacity={0.85}
           >
-            <Text style={styles.loginButtonText}>LOGIN</Text>
+            {submitting
+              ? <ActivityIndicator size="small" color={COLORS.white} />
+              : <Text style={styles.loginButtonText}>LOGIN</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -181,6 +198,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: SPACING.sm,
     ...SHADOW.md,
+  },
+  loginButtonOff: {
+    opacity: 0.6,
   },
   loginButtonText: {
     fontSize: TYPOGRAPHY.md,

@@ -1,7 +1,9 @@
+import { useAuth } from '@/src/context/AuthContext';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '@/src/constants/theme';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView, Platform,
   ScrollView,
@@ -11,8 +13,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// 서버 RegisterRequest가 8자 이상을 요구한다
+const MIN_PASSWORD = 8;
+
 export default function SignUpPage() {
   const router = useRouter();
+  const { register } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
   const [nickname, setNickname] = useState('');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -25,18 +32,26 @@ export default function SignUpPage() {
     if (!email.trim())          e.email    = '이메일을 입력해주세요.';
     else if (!/\S+@\S+\.\S+/.test(email)) e.email = '올바른 이메일 형식이 아닙니다.';
     if (!password)              e.password = '비밀번호를 입력해주세요.';
-    else if (password.length < 6) e.password = '비밀번호는 6자 이상이어야 합니다.';
+    else if (password.length < MIN_PASSWORD) e.password = `비밀번호는 ${MIN_PASSWORD}자 이상이어야 합니다.`;
     if (password !== confirmPw) e.confirmPw = '비밀번호가 일치하지 않습니다.';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleSignUp = () => {
-    if (!validate()) return;
-    // TODO: 실제 API 연동 시 authApi.register() 호출
-    Alert.alert('회원가입 완료', '회원가입이 완료되었습니다.\n로그인 해주세요.', [
-      { text: '확인', onPress: () => router.replace('/login') },
-    ]);
+  const handleSignUp = async () => {
+    if (submitting || !validate()) return;
+
+    setSubmitting(true);
+    try {
+      // 가입에 성공하면 토큰까지 함께 내려오므로 바로 로그인 상태가 된다
+      await register(email.trim(), password, nickname.trim());
+      router.replace('/(tabs)');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '잠시 후 다시 시도해주세요.';
+      Alert.alert('회원가입 실패', message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -93,7 +108,7 @@ export default function SignUpPage() {
               <View style={[styles.inputRow, errors.password && styles.inputError]}>
                 <TextInput
                   style={styles.input}
-                  placeholder="6자 이상 입력해주세요"
+                  placeholder={`${MIN_PASSWORD}자 이상 입력해주세요`}
                   placeholderTextColor={COLORS.textPlaceholder}
                   value={password}
                   onChangeText={setPassword}
@@ -120,8 +135,15 @@ export default function SignUpPage() {
             </View>
 
             {/* 가입 버튼 */}
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSignUp} activeOpacity={0.85}>
-              <Text style={styles.submitBtnText}>회원가입</Text>
+            <TouchableOpacity
+              style={[styles.submitBtn, submitting && styles.submitBtnOff]}
+              onPress={handleSignUp}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting
+                ? <ActivityIndicator size="small" color={COLORS.white} />
+                : <Text style={styles.submitBtnText}>회원가입</Text>}
             </TouchableOpacity>
 
             {/* 로그인으로 */}
@@ -162,6 +184,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.base, alignItems: 'center',
     marginTop: SPACING.sm, ...SHADOW.md,
   },
+  submitBtnOff: { opacity: 0.6 },
   submitBtnText: { fontSize: TYPOGRAPHY.md, fontWeight: TYPOGRAPHY.bold, color: COLORS.white, letterSpacing: 0.5 },
   loginLink: { alignItems: 'center', paddingVertical: SPACING.sm },
   loginLinkText: { fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary },
