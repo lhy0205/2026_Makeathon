@@ -105,7 +105,7 @@ export default function MedCheckScreen() {
   const key = toLocalDate(current);
   const isToday = dayOffset === 0;
 
-  const { groups, loading, error, refresh, mark, taken, total, decided } = useDoseDay(key);
+  const { groups, loading, error, refresh, mark, taken, total, decided, queued } = useDoseDay(key);
   const { index } = useMedicationIndex();
 
   const originOf = (dose: MedicationDoseResponse) => index[dose.medicationId];
@@ -186,7 +186,9 @@ export default function MedCheckScreen() {
               <Text style={styles.summaryUnit}> / {total}회 복용</Text>
             </Text>
             <Text style={styles.summarySub}>
-              {decided === total ? '기록 완료' : `미기록 ${total - decided}건`}
+              {queued > 0
+                ? `동기화 대기 ${queued}건`
+                : decided === total ? '기록 완료' : `미기록 ${total - decided}건`}
             </Text>
           </View>
         )}

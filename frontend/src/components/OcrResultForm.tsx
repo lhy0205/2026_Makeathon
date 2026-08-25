@@ -10,9 +10,13 @@ interface Props {
   editable?: boolean;
   /**
    * 손으로 고칠 수 있는 항목만 추린다. 지정하지 않으면 editable이 전부에 적용된다.
-   * 약 정보는 서버가 구조화된 형태로 내려주므로 자유 입력으로 덮어쓰지 않는다.
    */
   editableKeys?: (keyof OcrResult)[];
+  /**
+   * 보여줄 항목. 지정하지 않으면 전부 보여준다.
+   * 약 목록은 MedicationEditor가 따로 다루므로 그때는 여기서 뺀다.
+   */
+  visibleKeys?: (keyof OcrResult)[];
 }
 
 const EMPTY_RESULT: OcrResult = {
@@ -35,6 +39,7 @@ export default function OcrResultForm({
   onChangeResult,
   editable = false,
   editableKeys,
+  visibleKeys,
 }: Props) {
   const data = result ?? EMPTY_RESULT;
 
@@ -57,7 +62,9 @@ export default function OcrResultForm({
         )}
       </View>
 
-      {FIELD_LABELS.map(({ key, label, multiline, placeholder }) => (
+      {FIELD_LABELS
+        .filter(({ key }) => !visibleKeys || visibleKeys.includes(key))
+        .map(({ key, label, multiline, placeholder }) => (
         <View key={key} style={styles.fieldRow}>
           <Text style={styles.label}>{label}</Text>
           <TextInput

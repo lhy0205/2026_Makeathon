@@ -40,7 +40,7 @@ export default function MedicationCheckScreen() {
   const today = toLocalDate();
 
   const { visit } = useActiveVisit();
-  const { groups, loading, error, refresh, mark, percent, total } = useDoseDay(today);
+  const { groups, loading, error, refresh, mark, percent, total, queued } = useDoseDay(today);
 
   // 진행 중인 치료의 증상 변화 — 방문이 정해진 뒤에만 부른다
   const visitId = visit?.id ?? null;
@@ -157,7 +157,9 @@ export default function MedicationCheckScreen() {
         {total > 0 && (
           <View style={styles.progressCard}>
             <View style={styles.progressLabelRow}>
-              <Text style={styles.progressLabel}>오늘 복약률</Text>
+              <Text style={styles.progressLabel}>
+                오늘 복약률{queued > 0 ? ` · 동기화 대기 ${queued}건` : ''}
+              </Text>
               <Text style={styles.progressPercent}>{percent}%</Text>
             </View>
             <View style={styles.progressBg}>

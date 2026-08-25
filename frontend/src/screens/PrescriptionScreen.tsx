@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MedicationEditor from '../components/MedicationEditor';
 import OcrResultForm from '../components/OcrResultForm';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
 import type { AnalyzedMedication } from '../types/Api';
@@ -150,6 +151,9 @@ export default function PrescriptionScreen({ navigation }: Props) {
   };
 
   const ready = scanState === 'done';
+  // 약이 하나도 없으면 저장해도 복약 일정이 안 생긴다
+  const canProceed = ready && medications.length > 0
+    && medications.every((m) => m.medicationName.trim().length > 0);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -203,19 +207,23 @@ export default function PrescriptionScreen({ navigation }: Props) {
         )}
 
         {/* OCR 인식 정보 — 항상 표시, 인식 완료 시 자동 채워짐 */}
-        {/* 약 정보는 서버가 구조화해 내려주므로 자유 입력으로 덮어쓰지 않는다 */}
+        {/* 약 목록은 아래 MedicationEditor가 맡으므로 여기서는 뺀다 */}
         <OcrResultForm
           result={ocrResult}
           scanning={scanState === 'scanning'}
           onChangeResult={setOcrResult}
           editable={scanState === 'done'}
           editableKeys={['date', 'hospital']}
+          visibleKeys={['patientName', 'date', 'hospital']}
         />
 
-        {ready && medications.length === 0 && (
-          <Text style={styles.warnText}>
-            약 정보를 읽지 못했습니다. 사진을 다시 찍어 올려주세요.
-          </Text>
+        {/* 인식된 약을 저장 전에 고칠 수 있게 한다.
+            OCR이 약 이름을 틀리면 복약 알림에도 틀린 이름이 뜬다 */}
+        {ready && (
+          <MedicationEditor
+            medications={medications}
+            onChange={setMedications}
+          />
         )}
 
         {/* 다시 선택 */}
@@ -227,15 +235,19 @@ export default function PrescriptionScreen({ navigation }: Props) {
 
         {/* 완료 — 사진을 올려 인식이 끝나야 눌린다 */}
         <TouchableOpacity
-          style={[styles.confirmBtn, !ready && styles.confirmBtnOff]}
+          style={[styles.confirmBtn, !canProceed && styles.confirmBtnOff]}
           onPress={handleConfirm}
-          disabled={!ready}
+          disabled={!canProceed}
           activeOpacity={0.85}
         >
-          <Text style={[styles.confirmBtnText, !ready && styles.confirmBtnTextOff]}>다음</Text>
+          <Text style={[styles.confirmBtnText, !canProceed && styles.confirmBtnTextOff]}>다음</Text>
         </TouchableOpacity>
-        {!ready && (
-          <Text style={styles.confirmHint}>처방전 사진을 올리면 다음으로 넘어갈 수 있어요</Text>
+        {!canProceed && (
+          <Text style={styles.confirmHint}>
+            {!ready
+              ? '처방전 사진을 올리면 다음으로 넘어갈 수 있어요'
+              : '약 이름을 모두 채워야 다음으로 넘어갈 수 있어요'}
+          </Text>
         )}
       </ScrollView>
     </SafeAreaView>

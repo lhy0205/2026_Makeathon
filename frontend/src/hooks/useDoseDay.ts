@@ -1,8 +1,13 @@
 // ─────────────────────────────────────────────
 //  useDoseDay — 하루치 복약 일정과 체크 동작
+//
+//  연결이 끊긴 상태에서 누른 체크는 기기에 쌓아 두고(doseQueue)
+//  앱이 다시 앞으로 나올 때 보낸다. 지하철에서 누른 게 사라지면 안 된다.
 // ─────────────────────────────────────────────
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import { doseApi } from '../api/Client';
+import { enqueue, flush, isOffline, pendingForDate } from '../state/doseQueue';
 import type { DoseStatus, MedicationDoseResponse } from '../types/Api';
 import { toLocalDateTime, toPeriodLabel } from '../utils/datetime';
 import { useAsync } from './useAsync';
@@ -21,6 +26,28 @@ export function useDoseDay(date: string) {
     () => doseApi.getByDate(date),
     [date],
   );
+
+  /** 아직 서버에 못 보낸 체크 수 — 화면이 '동기화 대기'로 알려준다 */
+  const [queued, setQueued] = useState(0);
+
+  const syncQueued = useCallback(async () => {
+    setQueued((await pendingForDate(date)).length);
+  }, [date]);
+
+  useEffect(() => { void syncQueued(); }, [syncQueued]);
+
+  // 앱이 다시 앞으로 나오면 쌓인 걸 보낸다. 그때가 보통 연결이 돌아온 시점이다
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void (async () => {
+        const result = await flush();
+        if (result.sent > 0) await refresh();
+        await syncQueued();
+      })();
+    });
+    return () => sub.remove();
+  }, [refresh, syncQueued]);
 
   const doses = useMemo(() => data ?? [], [data]);
 
@@ -41,11 +68,11 @@ export function useDoseDay(date: string) {
   }, [doses]);
 
   /** 화면을 먼저 바꾸고 서버에 보낸다. 실패하면 되돌린다 */
-  const applyLocal = useCallback((doseIds: number[], status: DoseStatus) => {
+  const applyLocal = useCallback((doseIds: number[], status: DoseStatus, takenAt: string) => {
     setData((prev) =>
       (prev ?? []).map((d) =>
         doseIds.includes(d.id)
-          ? { ...d, doseStatus: status, takenAt: status === 'TAKEN' ? toLocalDateTime() : null }
+          ? { ...d, doseStatus: status, takenAt: status === 'TAKEN' ? takenAt : null }
           : d,
       ),
     );
@@ -55,27 +82,41 @@ export function useDoseDay(date: string) {
     if (doseIds.length === 0) return;
 
     const snapshot = data;
-    applyLocal(doseIds, status);
+    const takenAt = toLocalDateTime();
+    applyLocal(doseIds, status, takenAt);
 
     try {
-      const takenAt = toLocalDateTime();
       await Promise.all(doseIds.map((id) => (
         status === 'TAKEN'
           ? doseApi.markTaken(id, takenAt)
           : doseApi.markSkipped(id)
       )));
-      // 서버가 계산한 값(MISSED 전환 등)을 다시 받아온다
+      // 서버가 계산한 값을 다시 받아온다
       await refresh();
     } catch (e) {
+      if (isOffline(e)) {
+        // 연결이 없을 뿐이다. 누른 건 남겨 두고 나중에 보낸다
+        await Promise.all(
+          doseIds.map((doseId) => enqueue({ doseId, status, takenAt, date })),
+        );
+        await syncQueued();
+        return;
+      }
+
       if (snapshot) setData(snapshot);
       throw e;
     }
-  }, [data, applyLocal, refresh, setData]);
+  }, [data, applyLocal, refresh, setData, date, syncQueued]);
 
   const total = doses.length;
   const taken = doses.filter((d) => d.doseStatus === 'TAKEN').length;
   const decided = doses.filter((d) => d.doseStatus !== 'PENDING').length;
   const percent = total > 0 ? Math.round((taken / total) * 100) : 0;
 
-  return { doses, groups, loading, error, refresh, mark, total, taken, decided, percent };
+  return {
+    doses, groups, loading, error, refresh, mark,
+    total, taken, decided, percent,
+    /** 서버에 아직 못 보낸 체크 수 */
+    queued,
+  };
 }
