@@ -46,4 +46,9 @@ public class User extends BaseTimeEntity {
     public void updateNickname(String nickname) {
         this.nickname = nickname;
     }
+
+    /** 관리자 권한 부여. 부트스트랩 설정으로만 호출된다 (AdminAccountBootstrap) */
+    public void grantAdmin() {
+        this.role = UserRole.ADMIN;
+    }
 }

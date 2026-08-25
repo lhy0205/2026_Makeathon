@@ -17,6 +17,8 @@ java {
 
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += '-parameters'
+    // 소스에 한글이 많다. 플랫폼 기본 인코딩에 기대면 PC마다 결과가 달라진다
+    options.encoding = 'UTF-8'
 }
 
 repositories {

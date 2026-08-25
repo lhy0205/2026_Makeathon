@@ -1,0 +1,111 @@
+.back-link {
+  display: inline-block;
+  margin-bottom: var(--sp-base);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--primary);
+}
+.back-link:hover { text-decoration: underline; }
+
+.section-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--sp-md);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--sp-xl);
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+
+/* ── 치료 카드 ────────────────────────────── */
+.visit-list { display: grid; gap: var(--sp-md); }
+.visit {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--r-lg);
+  padding: var(--sp-lg);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: var(--sp-md);
+}
+.visit-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-md);
+}
+.visit-title { font-size: var(--fs-md); font-weight: 700; color: var(--text-primary); }
+.visit-dept { font-weight: 500; color: var(--text-secondary); }
+.visit-meta { margin-top: 2px; font-size: var(--fs-sm); color: var(--text-secondary); }
+.visit-period { font-size: var(--fs-sm); color: var(--text-secondary); }
+
+.med-chips { display: flex; flex-wrap: wrap; gap: var(--sp-xs); }
+.med-chip {
+  padding: 2px 9px;
+  border-radius: var(--r-round);
+  background: var(--primary-tint);
+  color: var(--primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.visit-dose { display: grid; gap: var(--sp-xs); }
+.visit-dose-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-sm);
+  flex-wrap: wrap;
+}
+.visit-dose-label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-secondary); }
+.visit-dose-value { font-size: var(--fs-sm); font-weight: 700; color: var(--text-primary); }
+.muted { color: var(--text-secondary); font-weight: 400; }
+
+.visit-foot {
+  display: flex;
+  gap: var(--sp-lg);
+  flex-wrap: wrap;
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+.visit-foot b { color: var(--text-primary); }
+
+/* ── 타임라인 ─────────────────────────────── */
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-md); }
+.timeline-item { display: flex; gap: var(--sp-md); align-items: flex-start; }
+.timeline-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-round);
+  background: var(--surface-sunk);
+  font-size: 14px;
+}
+.timeline-icon.tone-warn { background: #FFECEA; }
+.timeline-icon.tone-report { background: var(--primary-tint); }
+.timeline-body { min-width: 0; }
+.timeline-summary {
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.timeline-time { font-size: var(--fs-sm); color: var(--text-secondary); }
+
+.privacy-note {
+  margin-top: var(--sp-md);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}

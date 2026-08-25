@@ -1,0 +1,25 @@
+.search { max-width: 260px; }
+
+.user-cell { display: flex; align-items: center; gap: var(--sp-md); }
+.avatar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--r-round);
+  background: var(--primary);
+  color: var(--white);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.user-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.user-email { font-size: var(--fs-sm); color: var(--text-secondary); }
+
+.dose-cell { display: flex; align-items: center; gap: var(--sp-sm); min-width: 150px; }
+.dose-text { font-size: var(--fs-sm); white-space: nowrap; }

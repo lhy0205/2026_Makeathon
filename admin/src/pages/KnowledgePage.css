@@ -1,0 +1,43 @@
+.knowledge-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: var(--sp-xl);
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .knowledge-grid { grid-template-columns: 1fr; }
+}
+
+.form { display: grid; gap: var(--sp-base); }
+.field-hint { font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.5; }
+.form-actions { display: flex; gap: var(--sp-sm); }
+
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-base);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-md);
+}
+.list-head .section-title { margin-bottom: 0; }
+
+.row-actions { display: inline-flex; gap: var(--sp-xs); }
+
+/* 효능 설명이 길어도 표가 무너지지 않게 */
+.cell-clamp {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reindex-result {
+  margin-bottom: var(--sp-base);
+  padding: var(--sp-md) var(--sp-base);
+  border-radius: var(--r-md);
+  background: var(--primary-tint);
+  color: var(--primary-dark);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}

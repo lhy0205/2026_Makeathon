@@ -25,7 +25,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${cors.allowed-origins:http://localhost:8081,http://localhost:19006}")
+    @Value("${cors.allowed-origins:http://localhost:8081,http://localhost:19006,http://localhost:5173}")
     private String allowedOrigins;
 
     @Bean

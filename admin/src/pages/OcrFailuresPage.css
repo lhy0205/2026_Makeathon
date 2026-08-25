@@ -1,0 +1,13 @@
+.failure-summary {
+  margin-bottom: var(--sp-base);
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+}
+.failure-summary b { color: var(--text-primary); }
+
+.failure-note {
+  margin-top: var(--sp-base);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}

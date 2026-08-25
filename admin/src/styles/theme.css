@@ -1,0 +1,99 @@
+/* ─────────────────────────────────────────────
+   앱과 같은 디자인 토큰.
+   frontend/src/constants/theme.ts 를 그대로 옮겼다.
+   한쪽을 고치면 다른 쪽도 같이 고쳐야 두 화면이 같은 제품으로 보인다.
+   ───────────────────────────────────────────── */
+
+:root {
+  /* Brand */
+  --primary: #2A6FBF;
+  --primary-light: #4A8FDF;
+  --primary-dark: #1A4F8F;
+  --secondary: #5BA4E6;
+
+  /* Neutrals */
+  --white: #FFFFFF;
+  --background: #F5F7FA;
+  --surface: #FFFFFF;
+  --border: #E2E8F0;
+  --input-bg: #F0F4F8;
+
+  /* Text */
+  --text-primary: #1A2233;
+  --text-secondary: #6B7A99;
+  --text-placeholder: #A0AABF;
+
+  /* Semantic */
+  --success: #34C759;
+  --warning: #FF9500;
+  --error: #FF3B30;
+  --info: #5BA4E6;
+
+  /* 관리자 화면에만 필요한 색 — 앱에는 대응하는 화면이 없다 */
+  --surface-sunk: #EDF1F6;
+  --primary-tint: #EBF3FF;
+
+  /* Spacing — 앱의 SPACING */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 12px;
+  --sp-base: 16px;
+  --sp-lg: 20px;
+  --sp-xl: 24px;
+  --sp-xxl: 32px;
+  --sp-xxxl: 48px;
+
+  /* Radius — 앱의 RADIUS */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-round: 999px;
+
+  /* Shadow — 앱의 SHADOW를 CSS로 옮긴 것 */
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, .06);
+  --shadow-md: 0 4px 12px rgba(42, 111, 191, .12);
+  --shadow-lg: 0 8px 20px rgba(42, 111, 191, .18);
+
+  /* Type scale — 앱의 TYPOGRAPHY (px 그대로) */
+  --fs-xs: 10px;
+  --fs-sm: 12px;
+  --fs-base: 14px;
+  --fs-md: 16px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-xxl: 28px;
+  --fs-display: 36px;
+
+  --sidebar-width: 232px;
+}
+
+/* ── 리셋 ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic',
+    'Apple SD Gothic Neo', system-ui, sans-serif;
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+button { font: inherit; cursor: pointer; }
+input, select, textarea { font: inherit; }
+a { color: inherit; text-decoration: none; }
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* 숫자가 세로로 늘어서는 곳은 자리를 맞춘다 */
+.num { font-variant-numeric: tabular-nums; }

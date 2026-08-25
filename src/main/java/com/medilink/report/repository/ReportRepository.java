@@ -13,4 +13,9 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     Optional<Report> findFirstByVisitIdOrderByGeneratedAtDesc(Long visitId);
 
     Optional<Report> findByIdAndVisitUserId(Long id, Long userId);
+
+    // 관리자 화면: 한 사용자가 만든 리포트
+    List<Report> findAllByVisitUserIdOrderByGeneratedAtDesc(Long userId);
+
+    long countByVisitId(Long visitId);
 }

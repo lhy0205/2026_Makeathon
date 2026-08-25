@@ -36,4 +36,7 @@ public interface MedicationDoseRepository extends JpaRepository<MedicationDose, 
     );
 
     long countByDoseStatus(DoseStatus status);
+
+    // 관리자 화면: 한 사용자의 복약 일정 전체
+    List<MedicationDose> findAllByMedicationPrescriptionVisitUserId(Long userId);
 }

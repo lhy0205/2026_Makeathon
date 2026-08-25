@@ -5,8 +5,10 @@ import com.medilink.admin.dto.KnowledgeEntryRequest;
 import com.medilink.admin.dto.KnowledgeEntryResponse;
 import com.medilink.admin.dto.KnowledgeReindexResponse;
 import com.medilink.admin.dto.OcrFailureResponse;
+import com.medilink.admin.dto.AdminUserDetailResponse;
+import com.medilink.admin.dto.AdminUserSummaryResponse;
 import com.medilink.admin.service.AdminService;
-import com.medilink.user.dto.UserResponse;
+import com.medilink.admin.service.AdminUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +30,7 @@ import java.util.List;
 public class AdminController {
 
     private final AdminService adminService;
+    private final AdminUserService adminUserService;
 
     @GetMapping("/dashboard")
     public AdminDashboardResponse getDashboard() {
@@ -35,8 +38,14 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public List<UserResponse> getUsers() {
-        return adminService.getUsers();
+    public List<AdminUserSummaryResponse> getUsers() {
+        return adminUserService.getUsers();
+    }
+
+    /** 사용자 한 명이 앱에서 무엇을 했는지 */
+    @GetMapping("/users/{userId}")
+    public AdminUserDetailResponse getUser(@PathVariable Long userId) {
+        return adminUserService.getUser(userId);
     }
 
     @GetMapping("/ocr-failures")

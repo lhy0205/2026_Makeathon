@@ -14,4 +14,7 @@ public interface HealthLogRepository extends JpaRepository<HealthLog, Long> {
     boolean existsByVisitIdAndRecordedAtBetween(Long visitId, LocalDateTime start, LocalDateTime end);
 
     Optional<HealthLog> findByIdAndVisitUserId(Long id, Long userId);
+
+    // 관리자 화면: 한 사용자가 남긴 상태 기록
+    List<HealthLog> findAllByVisitUserIdOrderByRecordedAtDesc(Long userId);
 }
