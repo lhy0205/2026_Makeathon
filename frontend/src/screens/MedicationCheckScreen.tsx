@@ -43,10 +43,11 @@ export default function MedicationCheckScreen() {
   const { groups, loading, error, refresh, mark, percent, total } = useDoseDay(today);
 
   // 진행 중인 치료의 증상 변화 — 방문이 정해진 뒤에만 부른다
+  const visitId = visit?.id ?? null;
   const { data: summary } = useAsync(
-    () => visualizationApi.summary(visit!.id),
-    [visit?.id],
-    { enabled: visit != null },
+    async () => (visitId == null ? null : visualizationApi.summary(visitId)),
+    [visitId],
+    { enabled: visitId != null },
   );
 
   const recovery = recoveryPercent(

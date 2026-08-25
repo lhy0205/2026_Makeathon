@@ -37,8 +37,10 @@ export default function RegisterChatScreen() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // 처방전 화면에서 넘겨준 인식 결과
-  const draft = getDraft();
+  // 처방전 화면에서 넘겨준 인식 결과.
+  // 저장을 마치면 clearDraft()로 비우는데, 그 직후 리렌더에서 다시 읽으면
+  // 없다고 판단해 경고가 뜬다. 들어올 때 한 번만 읽어 화면이 살아 있는 동안 붙잡아 둔다.
+  const [draft] = useState(getDraft);
 
   const listRef = useRef<FlatList>(null);
   const [input, setInput] = useState('');
@@ -63,12 +65,13 @@ export default function RegisterChatScreen() {
 
   // 처방전 화면을 거치지 않고 들어오면 이어갈 수 있는 게 없다
   useEffect(() => {
-    if (!draft) {
-      Alert.alert('처방전 정보 없음', '처방전 등록을 다시 시작해주세요.', [
-        { text: '확인', onPress: () => router.replace('/(tabs)') },
-      ]);
-    }
-  }, [draft, router]);
+    if (draft) return;
+    Alert.alert('처방전 정보 없음', '처방전 등록을 다시 시작해주세요.', [
+      { text: '확인', onPress: () => router.replace('/(tabs)') },
+    ]);
+    // draft는 진입 시점에 고정되므로 이 검사는 한 번만 하면 된다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const append = (items: ChatMessage[]) => {
     setMessages((prev) => [...prev, ...items]);

@@ -52,9 +52,17 @@ export default function TrendScreen() {
 
   const enabled = visitId != null;
 
-  const health = useAsync(() => visualizationApi.healthTrend(visitId!), [visitId], { enabled });
-  const lifestyle = useAsync(() => visualizationApi.lifestyleTrend(visitId!), [visitId], { enabled });
-  const summary = useAsync(() => visualizationApi.summary(visitId!), [visitId], { enabled });
+  // visitId를 먼저 좁혀 둔다 — React Compiler가 클로저 안의 프로퍼티 접근을
+  // 렌더 본문으로 끌어올려도 안전하도록 단언(!)을 쓰지 않는다
+  const health = useAsync(
+    async () => (visitId == null ? null : visualizationApi.healthTrend(visitId)),
+    [visitId], { enabled });
+  const lifestyle = useAsync(
+    async () => (visitId == null ? null : visualizationApi.lifestyleTrend(visitId)),
+    [visitId], { enabled });
+  const summary = useAsync(
+    async () => (visitId == null ? null : visualizationApi.summary(visitId)),
+    [visitId], { enabled });
 
   const loading = visitLoading || health.loading || lifestyle.loading || summary.loading;
 

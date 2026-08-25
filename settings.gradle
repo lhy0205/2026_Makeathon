@@ -1,1 +1,7 @@
+plugins {
+    // 로컬에 없는 JDK를 Gradle이 알아서 받아온다.
+    // 팀원 PC에 어떤 JDK가 깔려 있든 같은 버전으로 빌드된다.
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
 rootProject.name = 'medilink-backend'

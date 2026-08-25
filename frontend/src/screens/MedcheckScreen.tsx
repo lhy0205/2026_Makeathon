@@ -19,7 +19,8 @@ import { toClockLabel, toLocalDate } from '../utils/datetime';
 
 // ── 선택지 ────────────────────────────────────
 // 값은 서버 DoseStatus와 동일하게 맞춘다.
-// '누락'은 서버가 지난 일정을 정리하며 붙이는 상태라 눌러서 고를 수 없다.
+// '누락'(MISSED)은 아직 아무 코드도 설정하지 않는다 — enum에만 있다.
+// 지난 일정을 정리하는 배치가 생기기 전까지는 눌러서 고를 수 없는 표시 전용 칸이다.
 const CHOICES: {
   key: Exclude<MedCheckStatus, 'PENDING'>;
   label: string;
@@ -256,7 +257,7 @@ export default function MedCheckScreen() {
 
         {total > 0 && (
           <Text style={styles.footnote}>
-            &lsquo;누락&rsquo;은 복용 시간이 지나도록 기록이 없을 때 서버가 자동으로 표시합니다.
+            기록하지 않은 일정은 &lsquo;미기록&rsquo;으로 남습니다.
           </Text>
         )}
 

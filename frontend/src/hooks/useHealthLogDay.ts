@@ -14,7 +14,7 @@ export type DayLogInput = Omit<HealthLogRequest, 'recordedAt'>;
 
 export function useHealthLogDay(visitId: number | null, date: string) {
   const { data, loading, error, refresh } = useAsync(
-    () => healthLogApi.getByVisit(visitId!),
+    async () => (visitId == null ? null : healthLogApi.getByVisit(visitId)),
     [visitId],
     { enabled: visitId != null },
   );

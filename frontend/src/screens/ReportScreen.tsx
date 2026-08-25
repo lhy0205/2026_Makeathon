@@ -54,7 +54,7 @@ export default function ReportScreen() {
   const visitId = visit?.id ?? null;
 
   const { data: report, loading, error, refresh, setData } = useAsync(
-    () => loadLatest(visitId!),
+    async () => (visitId == null ? null : loadLatest(visitId)),
     [visitId],
     { enabled: visitId != null },
   );

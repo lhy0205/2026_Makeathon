@@ -6,7 +6,7 @@ import { useAsync } from '@/src/hooks/useAsync';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /** 기록이 쌓인 뒤에 보는 화면들 */
@@ -19,12 +19,13 @@ const LINKS = [
 export default function HistoryTab() {
   const router = useRouter();
   const { visit, loading: visitLoading } = useActiveVisit();
+  const visitId = visit?.id ?? null;
 
   // 이 치료의 복약 일정 전체 — 모래시계는 남은 알약 수를 보여준다
   const { data: doses, loading: dosesLoading } = useAsync(
-    () => doseApi.getByVisit(visit!.id),
-    [visit?.id],
-    { enabled: visit != null },
+    async () => (visitId == null ? null : doseApi.getByVisit(visitId)),
+    [visitId],
+    { enabled: visitId != null },
   );
 
   const total = doses?.length ?? 0;
@@ -33,7 +34,11 @@ export default function HistoryTab() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 로고 배지 + 라벨 — 왼쪽 정렬 */}
         <View style={styles.labelRow}>
           <Text style={styles.logo}>💊</Text>
@@ -103,16 +108,19 @@ export default function HistoryTab() {
             ))}
           </View>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
+  scroll: { flex: 1 },
   body: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    gap: SPACING.md, paddingHorizontal: SPACING.xl,
+    flexGrow: 1, alignItems: 'center', justifyContent: 'center',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xl,
   },
 
   labelRow: {
@@ -148,7 +156,7 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     gap: SPACING.md,
-    marginTop: SPACING.xl,
+    marginTop: SPACING.base,
   },
 
   btn: {

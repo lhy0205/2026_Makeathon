@@ -8,8 +8,11 @@ group = 'com.medilink'
 version = '0.0.1-SNAPSHOT'
 
 java {
-    sourceCompatibility = '21'
-    targetCompatibility = '21'
+    // Gradle을 어떤 JDK로 실행하든 Java 21로 컴파일한다.
+    // 없으면 foojay resolver(settings.gradle)가 받아온다.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -31,6 +34,8 @@ dependencies {
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    // local 프로파일로 Docker 없이 띄울 때만 쓴다. 빌드 산출물에는 안 들어간다
+    developmentOnly 'com.h2database:h2'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'com.h2database:h2'

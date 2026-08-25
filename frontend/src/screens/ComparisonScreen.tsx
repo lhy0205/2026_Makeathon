@@ -64,7 +64,7 @@ export default function ComparisonScreen() {
   );
 
   const { data: comparison, loading, error, refresh, setData } = useAsync(
-    () => loadLatest(visitId!),
+    async () => (visitId == null ? null : loadLatest(visitId)),
     [visitId],
     { enabled: visitId != null },
   );
