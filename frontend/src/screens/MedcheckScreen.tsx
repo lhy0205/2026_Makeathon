@@ -1,27 +1,38 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text, TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MOCK_MED_CHECK, MOCK_PRESCRIPTIONS } from '../constants/mockData';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
-import type { MedCheckGroup, MedCheckStatus } from '../types';
+import type { DosePeriodGroup } from '../hooks/useDoseDay';
+import { useDoseDay } from '../hooks/useDoseDay';
+import { useMedicationIndex } from '../hooks/useMedicationIndex';
+import type { MedCheckStatus } from '../types';
+import type { MedicationDoseResponse } from '../types/Api';
+import { toClockLabel, toLocalDate } from '../utils/datetime';
 
-// ── 선택지 3가지 ──────────────────────────────
-// 값은 서버 DoseStatus와 동일하게 맞춘다
-const CHOICES: { key: Exclude<MedCheckStatus, 'PENDING'>; label: string; color: string }[] = [
-  { key: 'TAKEN', label: '복용', color: '#2F9E68' },
-  { key: 'SKIPPED', label: '건너뜀', color: '#E2A03F' },
-  { key: 'MISSED', label: '누락', color: '#DC5B54' },
+// ── 선택지 ────────────────────────────────────
+// 값은 서버 DoseStatus와 동일하게 맞춘다.
+// '누락'은 서버가 지난 일정을 정리하며 붙이는 상태라 눌러서 고를 수 없다.
+const CHOICES: {
+  key: Exclude<MedCheckStatus, 'PENDING'>;
+  label: string;
+  color: string;
+  selectable: boolean;
+}[] = [
+  { key: 'TAKEN',   label: '복용',   color: '#2F9E68', selectable: true },
+  { key: 'SKIPPED', label: '건너뜀', color: '#E2A03F', selectable: true },
+  { key: 'MISSED',  label: '누락',   color: '#DC5B54', selectable: false },
 ];
 
 // ── 날짜 ──────────────────────────────────────
 const pad = (n: number) => String(n).padStart(2, '0');
-const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const dateLabel = (d: Date) => `${pad(d.getMonth() + 1)}월 ${pad(d.getDate())}일`;
 
 function startOfToday() {
@@ -30,49 +41,50 @@ function startOfToday() {
   return d;
 }
 
-/** 아직 아무것도 체크하지 않은 날 */
-function blankDay(): MedCheckGroup[] {
-  return MOCK_MED_CHECK.map((g) => ({
-    ...g,
-    items: g.items.map((it) => ({ ...it, status: 'PENDING' as MedCheckStatus })),
-  }));
-}
-
-const rxOf = (rxId: string) => MOCK_PRESCRIPTIONS.find((r) => r.id === rxId);
-
 /**
- * 한 행 = 한 처방전. 약 이름이 아니라 병원으로 묶는다.
- * 사용자는 약 이름을 모르고, 한 병원 약은 보통 한 번에 같이 먹는다.
+ * 한 행 = 한 병원의 처방.
+ * 사용자는 약 이름을 외우지 못하고, 한 병원에서 받은 약은 보통 같이 먹는다.
  */
 type Row = {
-  rxId: string;
+  key: string;
   hospital: string;
   reason: string;
-  itemIds: string[];
+  medicationNames: string[];
+  doseIds: number[];
   status: MedCheckStatus;
 };
 
-function toRows(group: MedCheckGroup): Row[] {
-  const order: string[] = [];
-  const byRx = new Map<string, typeof group.items>();
+const UNKNOWN_KEY = 'unknown';
 
-  for (const item of group.items) {
-    if (!byRx.has(item.rxId)) { byRx.set(item.rxId, []); order.push(item.rxId); }
-    byRx.get(item.rxId)!.push(item);
+function toRows(
+  group: DosePeriodGroup,
+  originOf: (dose: MedicationDoseResponse) => { hospitalName: string; visitReason: string | null } | undefined,
+): Row[] {
+  const order: string[] = [];
+  const byVisit = new Map<string, MedicationDoseResponse[]>();
+
+  for (const dose of group.doses) {
+    const origin = originOf(dose);
+    const key = origin ? origin.hospitalName : UNKNOWN_KEY;
+    if (!byVisit.has(key)) { byVisit.set(key, []); order.push(key); }
+    byVisit.get(key)!.push(dose);
   }
 
-  return order.map((rxId) => {
-    const items = byRx.get(rxId)!;
-    const rx = rxOf(rxId);
-    // 한 처방전의 약은 함께 체크되므로 상태가 갈릴 일은 없지만, 갈리면 미선택으로 본다
-    const first = items[0].status;
-    const same = items.every((i) => i.status === first);
+  return order.map((key) => {
+    const doses = byVisit.get(key)!;
+    const origin = originOf(doses[0]);
+
+    // 같은 병원 약은 함께 체크되므로 보통 상태가 같다. 갈리면 미선택으로 본다
+    const first = doses[0].doseStatus;
+    const same = doses.every((d) => d.doseStatus === first);
+
     return {
-      rxId,
-      hospital: rx?.hospital ?? '기타',
-      reason: rx?.reason ?? '',
-      itemIds: items.map((i) => i.id),
-      status: same ? first : ('PENDING' as MedCheckStatus),
+      key,
+      hospital: origin?.hospitalName ?? '기타',
+      reason: origin?.visitReason ?? '',
+      medicationNames: Array.from(new Set(doses.map((d) => d.medicationName))),
+      doseIds: doses.map((d) => d.id),
+      status: same ? (first as MedCheckStatus) : 'PENDING',
     };
   });
 }
@@ -89,39 +101,27 @@ export default function MedCheckScreen() {
     return d;
   }, [today, dayOffset]);
 
-  const key = dateKey(current);
+  const key = toLocalDate(current);
   const isToday = dayOffset === 0;
 
-  // TODO: DB 연동 전까지 메모리에만 보관.
-  //       나중에 doseApi.getByDate(key) / markTaken · markSkipped 로 교체한다.
-  const [days, setDays] = useState<Record<string, MedCheckGroup[]>>(() => ({
-    [dateKey(startOfToday())]: MOCK_MED_CHECK.map((g) => ({
-      ...g,
-      items: g.items.map((it) => ({ ...it })),
-    })),
-  }));
+  const { groups, loading, error, refresh, mark, taken, total, decided } = useDoseDay(key);
+  const { index } = useMedicationIndex();
 
-  const groups = days[key] ?? blankDay();
+  const originOf = (dose: MedicationDoseResponse) => index[dose.medicationId];
 
-  /** 한 처방전에 속한 약들의 상태를 한꺼번에 바꾼다 */
-  const setRowStatus = (itemIds: string[], status: MedCheckStatus, current: MedCheckStatus) => {
-    // 이미 같은 걸 누르면 해제해서 미선택으로 되돌린다
-    const next: MedCheckStatus = current === status ? 'PENDING' : status;
-    setDays((prev) => {
-      const base = prev[key] ?? blankDay();
-      return {
-        ...prev,
-        [key]: base.map((g) => ({
-          ...g,
-          items: g.items.map((it) => (itemIds.includes(it.id) ? { ...it, status: next } : it)),
-        })),
-      };
-    });
+  /** 같은 행의 약들을 한꺼번에 바꾼다. 같은 걸 다시 누르면 해제한다 */
+  const handlePick = async (row: Row, choice: typeof CHOICES[number]) => {
+    if (!choice.selectable) return;
+    // 서버에 'PENDING으로 되돌리기'가 없어서, 이미 고른 값을 다시 누르면 그대로 둔다
+    if (row.status === choice.key) return;
+
+    try {
+      await mark(row.doseIds, choice.key as 'TAKEN' | 'SKIPPED');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '기록하지 못했습니다.';
+      Alert.alert('기록 실패', message);
+    }
   };
-
-  const allRows = groups.flatMap(toRows);
-  const decided = allRows.filter((r) => r.status !== 'PENDING').length;
-  const takenCount = allRows.filter((r) => r.status === 'TAKEN').length;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -164,16 +164,31 @@ export default function MedCheckScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
+        {loading && <ActivityIndicator size="small" color={COLORS.primary} />}
+
+        {error && !loading && (
+          <TouchableOpacity style={styles.errorBox} onPress={refresh} activeOpacity={0.8}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorRetry}>다시 시도</Text>
+          </TouchableOpacity>
+        )}
+
+        {!loading && !error && total === 0 && (
+          <Text style={styles.emptyText}>이 날짜에 등록된 복약 일정이 없습니다.</Text>
+        )}
+
         {/* 진행 요약 */}
-        <View style={styles.summary}>
-          <Text style={styles.summaryMain}>
-            <Text style={styles.summaryNum}>{takenCount}</Text>
-            <Text style={styles.summaryUnit}> / {allRows.length}회 복용</Text>
-          </Text>
-          <Text style={styles.summarySub}>
-            {decided === allRows.length ? '기록 완료' : `미기록 ${allRows.length - decided}건`}
-          </Text>
-        </View>
+        {total > 0 && (
+          <View style={styles.summary}>
+            <Text style={styles.summaryMain}>
+              <Text style={styles.summaryNum}>{taken}</Text>
+              <Text style={styles.summaryUnit}> / {total}회 복용</Text>
+            </Text>
+            <Text style={styles.summarySub}>
+              {decided === total ? '기록 완료' : `미기록 ${total - decided}건`}
+            </Text>
+          </View>
+        )}
 
         {groups.map((group) => (
           <View key={group.period} style={styles.groupCard}>
@@ -181,7 +196,9 @@ export default function MedCheckScreen() {
             {/* 시간대 */}
             <View style={styles.groupHead}>
               <Text style={styles.groupPeriod}>{group.period}</Text>
-              <Text style={styles.groupTime}>{group.items[0]?.time}</Text>
+              <Text style={styles.groupTime}>
+                {group.doses[0] ? toClockLabel(group.doses[0].scheduledAt) : ''}
+              </Text>
             </View>
 
             {/* 열 제목 — 표는 아니지만 표처럼 읽히도록 */}
@@ -193,9 +210,9 @@ export default function MedCheckScreen() {
             </View>
 
             {/* 병원 하나 = 한 행 */}
-            {toRows(group).map((row, idx) => (
+            {toRows(group, originOf).map((row, idx) => (
               <View
-                key={row.rxId}
+                key={row.key}
                 style={[styles.matrixRow, idx > 0 && styles.matrixRowDivider]}
               >
                 <View style={styles.medCol}>
@@ -203,7 +220,7 @@ export default function MedCheckScreen() {
                     {row.hospital}
                   </Text>
                   <Text style={styles.medHospital} numberOfLines={1}>
-                    {row.reason} · {row.itemIds.length}종
+                    {row.reason ? `${row.reason} · ` : ''}{row.medicationNames.length}종
                   </Text>
                 </View>
 
@@ -213,15 +230,17 @@ export default function MedCheckScreen() {
                     <TouchableOpacity
                       key={c.key}
                       style={styles.cell}
-                      onPress={() => setRowStatus(row.itemIds, c.key, row.status)}
+                      onPress={() => handlePick(row, c)}
+                      disabled={!c.selectable}
                       activeOpacity={0.6}
                       accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
+                      accessibilityState={{ selected: on, disabled: !c.selectable }}
                       accessibilityLabel={`${row.hospital} ${c.label}`}
                     >
                       <View
                         style={[
                           styles.radio,
+                          !c.selectable && styles.radioReadonly,
                           on && { borderColor: c.color, backgroundColor: c.color },
                         ]}
                       >
@@ -234,6 +253,12 @@ export default function MedCheckScreen() {
             ))}
           </View>
         ))}
+
+        {total > 0 && (
+          <Text style={styles.footnote}>
+            &lsquo;누락&rsquo;은 복용 시간이 지나도록 기록이 없을 때 서버가 자동으로 표시합니다.
+          </Text>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -276,6 +301,21 @@ const styles = StyleSheet.create({
   },
 
   content: { padding: SPACING.base, gap: SPACING.md, paddingBottom: SPACING.xxl },
+
+  errorBox: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
+    padding: SPACING.base, alignItems: 'center', gap: SPACING.xs,
+  },
+  errorText: { fontSize: TYPOGRAPHY.sm, color: COLORS.error, textAlign: 'center' },
+  errorRetry: { fontSize: TYPOGRAPHY.xs, color: COLORS.primary, fontWeight: TYPOGRAPHY.bold },
+  emptyText: {
+    fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary,
+    textAlign: 'center', paddingVertical: SPACING.xl,
+  },
+  footnote: {
+    fontSize: 11, color: COLORS.textSecondary,
+    textAlign: 'center', paddingHorizontal: SPACING.base,
+  },
 
   // 요약
   summary: {
@@ -323,5 +363,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.surface,
   },
+  radioReadonly: { borderStyle: 'dashed' },
   radioMark: { fontSize: 12, color: COLORS.white, fontWeight: TYPOGRAPHY.bold },
 });

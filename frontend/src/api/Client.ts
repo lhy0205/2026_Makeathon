@@ -235,6 +235,10 @@ export const doseApi = {
       body: JSON.stringify(body),
     }),
 
+  /** 치료 한 건의 복약 일정 전체 — 진행률 계산에 쓴다 */
+  getByVisit: (visitId: number) =>
+    request<MedicationDoseResponse[]>(`/api/v1/visits/${visitId}/doses`),
+
   getToday: () =>
     request<MedicationDoseResponse[]>('/api/v1/doses/today'),
 

@@ -1,16 +1,29 @@
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
-  Text, TouchableOpacity,
+  Text, TextInput, TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MOCK_PRESCRIPTIONS, MOCK_SIDE_EFFECTS } from '../constants/mockData';
+import {
+  CUSTOM_EFFECT_ID,
+  freshSideEffects,
+  fromSideEffectLabels,
+  scoreToSeverity,
+  severityToScore,
+  toSideEffectLabels,
+} from '../constants/sideEffects';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
-import type { Prescription, SideEffectItem } from '../types';
+import { useActiveVisit } from '../hooks/useActiveVisit';
+import { useHealthLogDay } from '../hooks/useHealthLogDay';
+import type { SideEffectItem } from '../types';
+import type { VisitResponse } from '../types/Api';
+import { toLocalDate } from '../utils/datetime';
 
 // ── 기록 항목 설정 ────────────────────────────
 // 단위는 서버 HealthLogRequest와 동일하게 맞춘다
@@ -18,6 +31,8 @@ import type { Prescription, SideEffectItem } from '../types';
 const WATER = { step: 250, min: 0, max: 4000, targetMl: 2250, accent: '#38A3E8' };
 const SLEEP = { step: 0.5, min: 0, max: 14, targetH: 8, accent: '#7C6BD6' };
 const TEMP = { step: 0.1, min: 34, max: 42, accent: '#E0559B' };
+
+const DEFAULT_TEMP = 36.5;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -27,24 +42,7 @@ function toLiter(ml: number) {
 }
 
 // ── 날짜 ──────────────────────────────────────
-/** 하루치 기록. 나중에 HealthLogRequest 한 건으로 그대로 보낸다 */
-type DayLog = {
-  waterMl: number;
-  sleepHours: number;
-  tempC: number;
-  /** 처방전 id → 그 약의 부작용 기록.
-   *  A병원·B병원 약을 같이 먹을 수 있으므로 처방전 단위로 나눈다 */
-  sideEffects: Record<string, SideEffectItem[]>;
-};
-
-const rxLabel = (rx: Prescription) => `${rx.hospital} (${rx.date})`;
-
-function freshEffects(): SideEffectItem[] {
-  return MOCK_SIDE_EFFECTS.map((e) => ({ ...e, enabled: false, score: 50 }));
-}
-
 const pad = (n: number) => String(n).padStart(2, '0');
-const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const dateLabel = (d: Date) => `${pad(d.getMonth() + 1)}월 ${pad(d.getDate())}일`;
 
 function startOfToday() {
@@ -53,12 +51,7 @@ function startOfToday() {
   return d;
 }
 
-/** 아직 기록하지 않은 날의 초기값 */
-function blankLog(): DayLog {
-  const sideEffects: Record<string, SideEffectItem[]> = {};
-  for (const rx of MOCK_PRESCRIPTIONS) sideEffects[rx.id] = freshEffects();
-  return { waterMl: 0, sleepHours: 0, tempC: 36.5, sideEffects };
-}
+const visitLabel = (v: VisitResponse) => `${v.hospitalName} (${v.visitedAt})`;
 
 function getScoreLabel(score: number): string {
   if (score <= 20) return '매우 나쁨';
@@ -75,14 +68,14 @@ function getScoreColor(score: number): string {
   return COLORS.success;
 }
 
-/** 어느 처방전의 부작용을 기록할지 고르는 드롭다운 */
-function RxPicker({
+/** 어느 치료에 대한 기록인지 고르는 드롭다운 */
+function VisitPicker({
   items, selectedId, onSelect,
 }: {
-  items: Prescription[]; selectedId: string; onSelect: (id: string) => void;
+  items: VisitResponse[]; selectedId: number | null; onSelect: (id: number) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = items.find((r) => r.id === selectedId);
+  const selected = items.find((v) => v.id === selectedId);
 
   return (
     <View style={styles.picker}>
@@ -93,24 +86,24 @@ function RxPicker({
       >
         <Text style={styles.pickerChevron}>{open ? '⌄' : '›'}</Text>
         <Text style={styles.pickerText} numberOfLines={1}>
-          {selected ? rxLabel(selected) : '처방전 선택'}
+          {selected ? visitLabel(selected) : '치료 선택'}
         </Text>
         <Text style={styles.pickerCount}>{items.length}건</Text>
       </TouchableOpacity>
 
       {open && (
         <View style={styles.pickerList}>
-          {items.map((rx) => {
-            const on = rx.id === selectedId;
+          {items.map((v) => {
+            const on = v.id === selectedId;
             return (
               <TouchableOpacity
-                key={rx.id}
+                key={v.id}
                 style={styles.pickerItem}
-                onPress={() => { onSelect(rx.id); setOpen(false); }}
+                onPress={() => { onSelect(v.id); setOpen(false); }}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.pickerItemText, on && styles.pickerItemTextOn]} numberOfLines={1}>
-                  {rxLabel(rx)}
+                  {visitLabel(v)}
                 </Text>
                 {on && <Text style={styles.pickerCheck}>✓</Text>}
               </TouchableOpacity>
@@ -186,53 +179,102 @@ export default function StatusCheckScreen() {
     return d;
   }, [today, dayOffset]);
 
-  const key = dateKey(current);
+  const key = toLocalDate(current);
   const isToday = dayOffset === 0;
 
-  const [selectedRxId, setSelectedRxId] = useState(MOCK_PRESCRIPTIONS[0].id);
+  const { visit, visits, loading: visitsLoading, error: visitsError } = useActiveVisit();
+  const [selectedVisitId, setSelectedVisitId] = useState<number | null>(null);
 
-  // TODO: DB 연동 전까지 메모리에만 보관. 앱을 껐다 켜면 사라진다.
-  //       나중에 healthLogApi.getByDate(key) / create(key, log) 로 교체한다.
-  const [logs, setLogs] = useState<Record<string, DayLog>>(() => ({
-    [dateKey(startOfToday())]: {
-      waterMl: 1250,
-      sleepHours: 7,
-      tempC: 36.5,
-      sideEffects: {
-        ...blankLog().sideEffects,
-        [MOCK_PRESCRIPTIONS[0].id]: MOCK_SIDE_EFFECTS.map((e) => ({ ...e })),
-      },
-    },
-  }));
+  // 진행 중인 치료를 기본값으로 잡는다
+  useEffect(() => {
+    if (selectedVisitId == null && visit) setSelectedVisitId(visit.id);
+  }, [visit, selectedVisitId]);
 
-  const log = logs[key] ?? blankLog();
-  // 선택한 처방전의 부작용만 다룬다
-  const effects = log.sideEffects[selectedRxId] ?? freshEffects();
+  const { log, loading: logLoading, save } = useHealthLogDay(selectedVisitId, key);
 
-  /** 오늘 날짜 칸만 골라서 갱신 */
-  const patch = (changes: Partial<DayLog>) =>
-    setLogs((prev) => ({
-      ...prev,
-      [key]: { ...(prev[key] ?? blankLog()), ...changes },
-    }));
+  // ── 화면 입력값 ─────────────────────────────
+  const [waterMl, setWaterMl] = useState(0);
+  const [sleepHours, setSleepHours] = useState(0);
+  const [tempC, setTempC] = useState(DEFAULT_TEMP);
+  const [effects, setEffects] = useState<SideEffectItem[]>(freshSideEffects);
+  const [memo, setMemo] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const setEffects = (next: SideEffectItem[]) =>
-    patch({ sideEffects: { ...log.sideEffects, [selectedRxId]: next } });
+  // 날짜나 치료를 바꾸면 그 날 저장해 둔 값으로 채운다
+  useEffect(() => {
+    if (logLoading) return;
+
+    if (!log) {
+      setWaterMl(0);
+      setSleepHours(0);
+      setTempC(DEFAULT_TEMP);
+      setEffects(freshSideEffects());
+      setMemo('');
+      return;
+    }
+
+    setWaterMl(log.waterIntakeMl ?? 0);
+    setSleepHours(log.sleepHours ?? 0);
+    setTempC(log.bodyTemperature ?? DEFAULT_TEMP);
+    setMemo(log.memo ?? '');
+    // 서버는 항목별 점수를 따로 두지 않는다. 저장된 심각도 하나를 모든 항목에 되돌려 놓는다
+    setEffects(fromSideEffectLabels(
+      log.sideEffects,
+      log.symptomSeverity != null ? severityToScore(log.symptomSeverity) : 50,
+    ));
+  }, [log, logLoading]);
 
   const toggleEffect = (id: string) =>
-    setEffects(effects.map((item) =>
+    setEffects((prev) => prev.map((item) =>
       item.id === id ? { ...item, enabled: !item.enabled } : item
     ));
 
   const updateScore = (id: string, score: number) =>
-    setEffects(effects.map((item) =>
+    setEffects((prev) => prev.map((item) =>
       item.id === id ? { ...item, score: Math.round(score) } : item
+    ));
+
+  const updateCustom = (value: string) =>
+    setEffects((prev) => prev.map((item) =>
+      item.id === CUSTOM_EFFECT_ID ? { ...item, customValue: value } : item
     ));
 
   const activeEffects = effects.filter((e) => e.enabled);
   const avgScore = activeEffects.length > 0
     ? Math.round(activeEffects.reduce((sum, e) => sum + e.score, 0) / activeEffects.length)
     : null;
+
+  const handleDone = async () => {
+    if (saving) return;
+
+    if (selectedVisitId == null) {
+      Alert.alert('기록할 치료가 없어요', '처방전을 먼저 등록해주세요.');
+      return;
+    }
+
+    const labels = toSideEffectLabels(effects);
+
+    setSaving(true);
+    try {
+      await save({
+        // 가장 두드러진 증상을 대표 이름으로 남긴다
+        symptomName: labels[0] ?? null,
+        symptomSeverity: avgScore != null ? scoreToSeverity(avgScore) : null,
+        sideEffects: labels,
+        bodyTemperature: tempC,
+        sleepHours,
+        waterIntakeMl: waterMl,
+        activityMinutes: null,
+        memo: memo.trim() || null,
+      });
+      router.back();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '저장하지 못했습니다.';
+      Alert.alert('저장 실패', message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -243,8 +285,10 @@ export default function StatusCheckScreen() {
           <Text style={styles.cancelBtn}>취소</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>상태 체크</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.doneBtn}>완료</Text>
+        <TouchableOpacity onPress={handleDone} disabled={saving}>
+          {saving
+            ? <ActivityIndicator size="small" color={COLORS.primary} />
+            : <Text style={styles.doneBtn}>완료</Text>}
         </TouchableOpacity>
       </View>
 
@@ -275,6 +319,20 @@ export default function StatusCheckScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
+        {(visitsLoading || logLoading) && (
+          <ActivityIndicator size="small" color={COLORS.primary} />
+        )}
+
+        {visitsError && <Text style={styles.errorText}>{visitsError}</Text>}
+
+        {!visitsLoading && visits.length === 0 && (
+          <Text style={styles.emptyText}>
+            처방전을 먼저 등록하면 상태를 기록할 수 있어요.
+          </Text>
+        )}
+
+        {log && <Text style={styles.savedBadge}>이 날짜에 저장된 기록을 불러왔습니다</Text>}
+
         {/* 요약 3종 */}
         <View style={styles.tileRow}>
           <StatTile
@@ -285,13 +343,13 @@ export default function StatusCheckScreen() {
           />
           <StatTile
             label="음수량"
-            value={toLiter(log.waterMl)}
+            value={toLiter(waterMl)}
             sub={`/ ${toLiter(WATER.targetMl)} 리터`}
             accent={WATER.accent}
           />
           <StatTile
             label="수면 시간"
-            value={String(log.sleepHours)}
+            value={String(sleepHours)}
             sub={`/ ${SLEEP.targetH} 시간`}
             accent={SLEEP.accent}
           />
@@ -301,10 +359,10 @@ export default function StatusCheckScreen() {
         <Text style={styles.sectionLabel}>부작용 증상별 컨디션</Text>
         <Text style={styles.sectionHint}>항목을 탭해 활성화한 후 슬라이더로 조절하세요</Text>
 
-        <RxPicker
-          items={MOCK_PRESCRIPTIONS}
-          selectedId={selectedRxId}
-          onSelect={setSelectedRxId}
+        <VisitPicker
+          items={visits}
+          selectedId={selectedVisitId}
+          onSelect={setSelectedVisitId}
         />
 
         {effects.map((item) => (
@@ -321,6 +379,16 @@ export default function StatusCheckScreen() {
               )}
               <Text style={styles.effectToggle}>{item.enabled ? '✓' : '+'}</Text>
             </TouchableOpacity>
+
+            {item.id === CUSTOM_EFFECT_ID && item.enabled && (
+              <TextInput
+                style={styles.customInput}
+                placeholder="증상을 적어주세요 (쉼표로 구분)"
+                placeholderTextColor={COLORS.textPlaceholder}
+                value={item.customValue ?? ''}
+                onChangeText={updateCustom}
+              />
+            )}
 
             {item.enabled && (
               <View style={styles.sliderWrap}>
@@ -352,31 +420,42 @@ export default function StatusCheckScreen() {
         <MetricCard
           icon="💧"
           label="음수량"
-          value={toLiter(log.waterMl)}
+          value={toLiter(waterMl)}
           unit={`/ ${toLiter(WATER.targetMl)} 리터`}
           accent={WATER.accent}
-          onMinus={() => patch({ waterMl: clamp(log.waterMl - WATER.step, WATER.min, WATER.max) })}
-          onPlus={() => patch({ waterMl: clamp(log.waterMl + WATER.step, WATER.min, WATER.max) })}
+          onMinus={() => setWaterMl((v) => clamp(v - WATER.step, WATER.min, WATER.max))}
+          onPlus={() => setWaterMl((v) => clamp(v + WATER.step, WATER.min, WATER.max))}
         />
 
         <MetricCard
           icon="🛏️"
           label="수면 시간"
-          value={String(log.sleepHours)}
+          value={String(sleepHours)}
           unit={`/ ${SLEEP.targetH} 시간`}
           accent={SLEEP.accent}
-          onMinus={() => patch({ sleepHours: clamp(+(log.sleepHours - SLEEP.step).toFixed(1), SLEEP.min, SLEEP.max) })}
-          onPlus={() => patch({ sleepHours: clamp(+(log.sleepHours + SLEEP.step).toFixed(1), SLEEP.min, SLEEP.max) })}
+          onMinus={() => setSleepHours((v) => clamp(+(v - SLEEP.step).toFixed(1), SLEEP.min, SLEEP.max))}
+          onPlus={() => setSleepHours((v) => clamp(+(v + SLEEP.step).toFixed(1), SLEEP.min, SLEEP.max))}
         />
 
         <MetricCard
           icon="🌡️"
           label="기초 체온"
-          value={log.tempC.toFixed(1)}
+          value={tempC.toFixed(1)}
           unit="℃"
           accent={TEMP.accent}
-          onMinus={() => patch({ tempC: clamp(+(log.tempC - TEMP.step).toFixed(1), TEMP.min, TEMP.max) })}
-          onPlus={() => patch({ tempC: clamp(+(log.tempC + TEMP.step).toFixed(1), TEMP.min, TEMP.max) })}
+          onMinus={() => setTempC((v) => clamp(+(v - TEMP.step).toFixed(1), TEMP.min, TEMP.max))}
+          onPlus={() => setTempC((v) => clamp(+(v + TEMP.step).toFixed(1), TEMP.min, TEMP.max))}
+        />
+
+        {/* 메모 */}
+        <Text style={[styles.sectionLabel, styles.sectionGap]}>메모</Text>
+        <TextInput
+          style={styles.memoInput}
+          placeholder="오늘 몸 상태에 대해 남기고 싶은 말"
+          placeholderTextColor={COLORS.textPlaceholder}
+          value={memo}
+          onChangeText={setMemo}
+          multiline
         />
 
       </ScrollView>
@@ -431,6 +510,16 @@ const styles = StyleSheet.create({
 
   content: { padding: SPACING.base, gap: SPACING.sm, paddingBottom: SPACING.xxl },
 
+  errorText: { fontSize: TYPOGRAPHY.sm, color: COLORS.error, textAlign: 'center' },
+  emptyText: {
+    fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary,
+    textAlign: 'center', paddingVertical: SPACING.base,
+  },
+  savedBadge: {
+    fontSize: 10, color: COLORS.primary, fontWeight: TYPOGRAPHY.semibold,
+    textAlign: 'center',
+  },
+
   // 상단 요약 타일
   tileRow: {
     flexDirection: 'row',
@@ -455,7 +544,7 @@ const styles = StyleSheet.create({
   sectionHint: { fontSize: TYPOGRAPHY.xs, color: COLORS.textSecondary, marginBottom: SPACING.xs },
   sectionGap: { marginTop: SPACING.lg },
 
-  // 처방전 선택 드롭다운
+  // 치료 선택 드롭다운
   picker: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
@@ -530,6 +619,16 @@ const styles = StyleSheet.create({
   effectLabelDisabled: { color: COLORS.textSecondary },
   effectScoreText: { fontSize: TYPOGRAPHY.xs, fontWeight: TYPOGRAPHY.bold },
   effectToggle: { fontSize: TYPOGRAPHY.md, color: COLORS.primary, fontWeight: TYPOGRAPHY.bold, width: 20, textAlign: 'center' },
+  customInput: {
+    fontSize: TYPOGRAPHY.sm,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
   sliderWrap: { paddingHorizontal: SPACING.xs },
   slider: { width: '100%', height: 36 },
   sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -SPACING.xs },
@@ -578,5 +677,17 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.base,
     color: COLORS.textSecondary,
     fontWeight: TYPOGRAPHY.medium,
+  },
+
+  memoInput: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    fontSize: TYPOGRAPHY.sm,
+    color: COLORS.textPrimary,
   },
 });

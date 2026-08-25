@@ -6,7 +6,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { DAY_NAMES, MONTH_NAMES } from '../constants/mockData';
+import { DAY_NAMES, MONTH_NAMES } from '../constants/calendar';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { getHighlightColor, groupVisitsByDate, useCalendar } from '../hooks/useCalendar';
 import type { VisitResponse } from '../types/Api';

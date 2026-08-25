@@ -8,6 +8,7 @@ import com.medilink.dose.repository.MedicationDoseRepository;
 import com.medilink.global.exception.ApiException;
 import com.medilink.medication.entity.Medication;
 import com.medilink.medication.service.MedicationService;
+import com.medilink.visit.service.VisitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class MedicationDoseService {
 
     private final MedicationService medicationService;
     private final MedicationDoseRepository medicationDoseRepository;
+    private final VisitService visitService;
 
     @Transactional
     public List<MedicationDoseResponse> createMedicationDoses(
@@ -71,6 +73,17 @@ public class MedicationDoseService {
                         start,
                         end
                 );
+
+        return toResponses(doses);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MedicationDoseResponse> getVisitDoses(Long userId, Long visitId) {
+        // 남의 치료를 들여다볼 수 없게 소유권부터 확인한다
+        visitService.getOwnedVisit(userId, visitId);
+
+        List<MedicationDose> doses = medicationDoseRepository
+                .findAllByMedicationPrescriptionVisitIdOrderByScheduledAt(visitId);
 
         return toResponses(doses);
     }

@@ -38,6 +38,14 @@ public class MedicationDoseController {
         return medicationDoseService.createMedicationDoses(userId, medicationId, request);
     }
 
+    @GetMapping("/visits/{visitId}/doses")
+    public List<MedicationDoseResponse> getVisitDoses(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long visitId
+    ) {
+        return medicationDoseService.getVisitDoses(userId, visitId);
+    }
+
     @GetMapping("/doses/today")
     public List<MedicationDoseResponse> getTodayDoses(@AuthenticationPrincipal Long userId) {
         return medicationDoseService.getTodayDoses(userId);

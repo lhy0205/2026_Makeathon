@@ -1,26 +1,28 @@
+import { doseApi } from '@/src/api/Client';
 import PillHourglass from '@/src/components/PillHourglass';
-import { MOCK_MED_CHECK, MOCK_PRESCRIPTIONS } from '@/src/constants/mockData';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '@/src/constants/theme';
+import { useActiveVisit } from '@/src/hooks/useActiveVisit';
+import { useAsync } from '@/src/hooks/useAsync';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-// 하루 복약 횟수 (아침 · 저녁 = 2회)
-const DOSES_PER_DAY = MOCK_MED_CHECK.length;
-// 처방 일수
-const PRESCRIPTION_DAYS = MOCK_PRESCRIPTIONS[0].medications[0].days;
-// 모래시계에 들어가는 전체 알약 수
-const TOTAL_DOSES = DOSES_PER_DAY * PRESCRIPTION_DAYS;
-
-// TODO: DB 연동 전 임시값. 지금은 2일차까지 복용한 상태로 고정.
-//       나중에 복약 체크 상태를 공유하면 이 두 줄만 교체하면 된다.
-const DAYS_DONE = 2;
-const TAKEN_DOSES = DOSES_PER_DAY * DAYS_DONE;
 
 export default function HistoryTab() {
   const router = useRouter();
+  const { visit, loading: visitLoading } = useActiveVisit();
+
+  // 이 치료의 복약 일정 전체 — 모래시계는 남은 알약 수를 보여준다
+  const { data: doses, loading: dosesLoading } = useAsync(
+    () => doseApi.getByVisit(visit!.id),
+    [visit?.id],
+    { enabled: visit != null },
+  );
+
+  const total = doses?.length ?? 0;
+  const taken = doses?.filter((d) => d.doseStatus === 'TAKEN').length ?? 0;
+  const loading = visitLoading || dosesLoading;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -31,7 +33,20 @@ export default function HistoryTab() {
           <Text style={styles.label}>복약 완료 관리</Text>
         </View>
 
-        <PillHourglass total={TOTAL_DOSES} taken={TAKEN_DOSES} />
+        {loading ? (
+          <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
+        ) : total > 0 ? (
+          <>
+            <PillHourglass total={total} taken={taken} />
+            <Text style={styles.caption}>
+              {visit?.hospitalName} · {taken}/{total}회 복용
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.emptyText}>
+            처방전을 등록하면 복약 진행 상황을 볼 수 있어요.
+          </Text>
+        )}
 
         <View style={styles.actions}>
           {/* 복약 기록 */}
@@ -94,6 +109,20 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     letterSpacing: 0.2,
   },
+
+  loader: { marginVertical: SPACING.xxxl },
+  caption: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.semibold,
+  },
+  emptyText: {
+    fontSize: TYPOGRAPHY.sm,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingVertical: SPACING.xxxl,
+  },
+
   actions: {
     width: '100%',
     gap: SPACING.md,

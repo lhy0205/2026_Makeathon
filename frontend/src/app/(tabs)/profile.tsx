@@ -1,11 +1,65 @@
-import { MOCK_PRESCRIPTIONS, MOCK_USER } from '@/src/constants/mockData';
+import { prescriptionApi } from '@/src/api/Client';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '@/src/constants/theme';
+import { useAuth } from '@/src/context/AuthContext';
+import { useActiveVisit } from '@/src/hooks/useActiveVisit';
+import { useAsync } from '@/src/hooks/useAsync';
+import type { MedicationResponse, VisitResponse } from '@/src/types/Api';
 import { useRouter } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+/** 마이페이지에 보여줄 최근 처방전 개수 */
+const RECENT_LIMIT = 3;
+
+interface RecentPrescription {
+  visit: VisitResponse;
+  medications: MedicationResponse[];
+}
+
+/** 1일 3회처럼 읽히게 */
+function frequencyLabel(med: MedicationResponse): string {
+  const parts: string[] = [];
+  if (med.frequencyPerDay) parts.push(`1일 ${med.frequencyPerDay}회`);
+  if (med.durationDays) parts.push(`${med.durationDays}일`);
+  return parts.join(' · ');
+}
+
+function dosageLabel(med: MedicationResponse): string {
+  if (med.dosage == null) return med.medicationName;
+  return `${med.medicationName} ${med.dosage}${med.doseUnit ?? ''}`;
+}
 
 export default function ProfileTab() {
   const router = useRouter();
+  const { user, logout } = useAuth();
+  const { visits, loading: visitsLoading } = useActiveVisit();
+
+  const recentVisits = visits.slice(0, RECENT_LIMIT);
+
+  const { data: recent, loading: rxLoading } = useAsync<RecentPrescription[]>(
+    async () => Promise.all(
+      recentVisits.map(async (visit) => {
+        try {
+          const prescription = await prescriptionApi.getByVisit(visit.id);
+          return { visit, medications: prescription.medications };
+        } catch {
+          // 처방전을 아직 올리지 않은 방문도 목록에는 남긴다
+          return { visit, medications: [] };
+        }
+      }),
+    ),
+    [recentVisits.map((v) => v.id).join(',')],
+    { enabled: recentVisits.length > 0 },
+  );
 
   const handleLogout = () => {
     Alert.alert('로그아웃', '로그아웃 하시겠습니까?', [
@@ -13,10 +67,16 @@ export default function ProfileTab() {
       {
         text: '로그아웃',
         style: 'destructive',
-        onPress: () => router.replace('/login'),
+        onPress: async () => {
+          await logout();
+          router.replace('/login');
+        },
       },
     ]);
   };
+
+  const loading = visitsLoading || rxLoading;
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -27,31 +87,41 @@ export default function ProfileTab() {
         {/* 유저 카드 */}
         <View style={styles.userCard}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarInitial}>{MOCK_USER.name[0]}</Text>
+            <Text style={styles.avatarInitial}>{user?.nickname?.[0] ?? '?'}</Text>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{MOCK_USER.name}</Text>
-            <Text style={styles.userEmail}>{MOCK_USER.email}</Text>
+            <Text style={styles.userName}>{user?.nickname ?? ''}</Text>
+            <Text style={styles.userEmail}>{user?.email ?? ''}</Text>
           </View>
         </View>
 
         {/* 최근 처방전 */}
         <Text style={styles.sectionTitle}>최근 처방전</Text>
 
-        {MOCK_PRESCRIPTIONS.map((rx) => (
-          <View key={rx.id} style={styles.rxCard}>
+        {loading && <ActivityIndicator size="small" color={COLORS.primary} />}
+
+        {!loading && (recent?.length ?? 0) === 0 && (
+          <Text style={styles.emptyText}>아직 등록한 처방전이 없습니다.</Text>
+        )}
+
+        {recent?.map(({ visit, medications }) => (
+          <View key={visit.id} style={styles.rxCard}>
             <View style={styles.rxHeader}>
-              <Text style={styles.rxHospital}>{rx.hospital}</Text>
-              <Text style={styles.rxDate}>{rx.date}</Text>
+              <Text style={styles.rxHospital}>{visit.hospitalName}</Text>
+              <Text style={styles.rxDate}>{visit.visitedAt}</Text>
             </View>
             <View style={styles.rxDivider} />
-            {rx.medications.map((med, idx) => (
-              <View key={idx} style={styles.medRow}>
-                <Text style={styles.medDot}>•</Text>
-                <Text style={styles.medName}>{med.name} {med.dosage}</Text>
-                <Text style={styles.medFreq}>{med.frequency} · {med.days}일</Text>
-              </View>
-            ))}
+            {medications.length === 0 ? (
+              <Text style={styles.rxEmpty}>등록된 약 정보가 없습니다.</Text>
+            ) : (
+              medications.map((med) => (
+                <View key={med.id} style={styles.medRow}>
+                  <Text style={styles.medDot}>•</Text>
+                  <Text style={styles.medName}>{dosageLabel(med)}</Text>
+                  <Text style={styles.medFreq}>{frequencyLabel(med)}</Text>
+                </View>
+              ))
+            )}
           </View>
         ))}
 
@@ -128,6 +198,12 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginTop: SPACING.xs,
   },
+  emptyText: {
+    fontSize: TYPOGRAPHY.sm,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingVertical: SPACING.base,
+  },
 
   // 처방전 카드
   rxCard: {
@@ -156,6 +232,10 @@ const styles = StyleSheet.create({
   rxDivider: {
     height: 1,
     backgroundColor: COLORS.border,
+  },
+  rxEmpty: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
   },
   medRow: {
     flexDirection: 'row',

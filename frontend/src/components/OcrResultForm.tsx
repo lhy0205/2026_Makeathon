@@ -22,7 +22,7 @@ const EMPTY_RESULT: OcrResult = {
   medications: '',
 };
 
-const FIELD_LABELS: Array<{ key: keyof OcrResult; label: string; multiline?: boolean; placeholder: string }> = [
+const FIELD_LABELS: { key: keyof OcrResult; label: string; multiline?: boolean; placeholder: string }[] = [
   { key: 'patientName', label: '이름',   placeholder: '인식된 이름이 표시됩니다' },
   { key: 'date',        label: '날짜',   placeholder: '인식된 날짜가 표시됩니다' },
   { key: 'hospital',    label: '병원',   placeholder: '인식된 병원명이 표시됩니다' },

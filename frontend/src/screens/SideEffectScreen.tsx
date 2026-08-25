@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StatusBar,
@@ -12,21 +13,63 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MOCK_SIDE_EFFECTS } from '../constants/mockData';
+import {
+  CUSTOM_EFFECT_ID,
+  MAX_SEVERITY,
+  freshSideEffects,
+  fromSideEffectLabels,
+  toSideEffectLabels,
+} from '../constants/sideEffects';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { useActiveVisit } from '../hooks/useActiveVisit';
+import { useHealthLogDay } from '../hooks/useHealthLogDay';
 import type { SideEffectItem } from '../types';
+import { toLocalDate } from '../utils/datetime';
 
 const TOTAL_PAGES = 5;
 const CURRENT_PAGE = 4;
 
-// 오늘의 컨디션 점수 (1~5)
+// 오늘의 컨디션 점수 (1~5). 1이 가장 나쁘다
 const CONDITION_MAX = 5;
+const DEFAULT_CONDITION = 3;
+
+/** 컨디션 1~5 → 서버 증상 심각도 0~10 (값이 클수록 심하다) */
+function conditionToSeverity(condition: number): number {
+  return Math.round(((CONDITION_MAX - condition) / (CONDITION_MAX - 1)) * MAX_SEVERITY);
+}
+
+/** 서버 증상 심각도 0~10 → 컨디션 1~5 */
+function severityToCondition(severity: number): number {
+  const value = CONDITION_MAX - (severity / MAX_SEVERITY) * (CONDITION_MAX - 1);
+  return Math.min(CONDITION_MAX, Math.max(1, Math.round(value)));
+}
 
 export default function SideEffectScreen() {
   const router = useRouter();
-  const [conditionScore, setConditionScore] = useState(3);
-  const [sideEffects, setSideEffects] = useState<SideEffectItem[]>(MOCK_SIDE_EFFECTS);
-  const [customText, setCustomText] = useState('');
+  const today = toLocalDate();
+
+  const { visit, loading: visitLoading } = useActiveVisit();
+  const { log, loading: logLoading, save } = useHealthLogDay(visit?.id ?? null, today);
+
+  const [conditionScore, setConditionScore] = useState(DEFAULT_CONDITION);
+  const [sideEffects, setSideEffects] = useState<SideEffectItem[]>(freshSideEffects);
+  const [saving, setSaving] = useState(false);
+
+  // 오늘 이미 남긴 기록이 있으면 이어서 고칠 수 있게 채워 둔다
+  useEffect(() => {
+    if (logLoading) return;
+
+    if (!log) {
+      setConditionScore(DEFAULT_CONDITION);
+      setSideEffects(freshSideEffects());
+      return;
+    }
+
+    setConditionScore(
+      log.symptomSeverity != null ? severityToCondition(log.symptomSeverity) : DEFAULT_CONDITION,
+    );
+    setSideEffects(fromSideEffectLabels(log.sideEffects, 50));
+  }, [log, logLoading]);
 
   const toggleEffect = (id: string) => {
     setSideEffects((prev) =>
@@ -36,10 +79,50 @@ export default function SideEffectScreen() {
     );
   };
 
-  const handleComplete = () => {
-    Alert.alert('기록 완료', '오늘의 부작용 기록이 저장되었습니다.', [
-      { text: '확인', onPress: () => router.back() },
-    ]);
+  const updateCustom = (value: string) => {
+    setSideEffects((prev) =>
+      prev.map((item) =>
+        item.id === CUSTOM_EFFECT_ID ? { ...item, customValue: value } : item
+      )
+    );
+  };
+
+  const customItem = sideEffects.find((e) => e.id === CUSTOM_EFFECT_ID);
+
+  const handleComplete = async () => {
+    if (saving) return;
+
+    if (!visit) {
+      Alert.alert('기록할 치료가 없어요', '처방전을 먼저 등록해주세요.');
+      return;
+    }
+
+    const labels = toSideEffectLabels(sideEffects);
+
+    setSaving(true);
+    try {
+      // 상태 체크 화면과 같은 하루치 기록에 이어 쓴다.
+      // 생활 기록(수면·음수·체온)은 그 화면에서 넣은 값을 지우지 않는다.
+      await save({
+        symptomName: labels[0] ?? null,
+        symptomSeverity: conditionToSeverity(conditionScore),
+        sideEffects: labels,
+        bodyTemperature: log?.bodyTemperature ?? null,
+        sleepHours: log?.sleepHours ?? null,
+        waterIntakeMl: log?.waterIntakeMl ?? null,
+        activityMinutes: log?.activityMinutes ?? null,
+        memo: log?.memo ?? null,
+      });
+
+      Alert.alert('기록 완료', '오늘의 부작용 기록이 저장되었습니다.', [
+        { text: '확인', onPress: () => router.back() },
+      ]);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '저장하지 못했습니다.';
+      Alert.alert('저장 실패', message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -59,6 +142,22 @@ export default function SideEffectScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+        {(visitLoading || logLoading) && (
+          <ActivityIndicator size="small" color={COLORS.primary} />
+        )}
+
+        {!visitLoading && !visit && (
+          <Text style={styles.emptyText}>
+            처방전을 먼저 등록하면 부작용을 기록할 수 있어요.
+          </Text>
+        )}
+
+        {visit && (
+          <Text style={styles.contextText}>
+            {visit.hospitalName}{visit.visitReason ? ` · ${visit.visitReason}` : ''}
+          </Text>
+        )}
 
         {/* 오늘의 컨디션 점수 */}
         <View style={styles.card}>
@@ -90,7 +189,7 @@ export default function SideEffectScreen() {
 
           {sideEffects.map((item) => (
             <View key={item.id} style={styles.effectRow}>
-              {item.id === 'se_006' ? (
+              {item.id === CUSTOM_EFFECT_ID ? (
                 // 직접 입력 항목
                 <View style={styles.customRow}>
                   <Switch
@@ -101,15 +200,12 @@ export default function SideEffectScreen() {
                   />
                   <TextInput
                     style={styles.customInput}
-                    placeholder="직접 입력"
+                    placeholder="직접 입력 (쉼표로 구분)"
                     placeholderTextColor={COLORS.textPlaceholder}
-                    value={customText}
-                    onChangeText={setCustomText}
+                    value={customItem?.customValue ?? ''}
+                    onChangeText={updateCustom}
                     editable={item.enabled}
                   />
-                  <TouchableOpacity style={styles.editIconBtn}>
-                    <Text style={styles.editIcon}>✏️</Text>
-                  </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.switchRow}>
@@ -130,8 +226,15 @@ export default function SideEffectScreen() {
 
       {/* 하단 완료 버튼 */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.completeBtn} onPress={handleComplete} activeOpacity={0.85}>
-          <Text style={styles.completeBtnText}>✓ 체크 완료</Text>
+        <TouchableOpacity
+          style={[styles.completeBtn, saving && styles.completeBtnOff]}
+          onPress={handleComplete}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          {saving
+            ? <ActivityIndicator size="small" color={COLORS.white} />
+            : <Text style={styles.completeBtnText}>✓ 체크 완료</Text>}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -182,6 +285,17 @@ const styles = StyleSheet.create({
     padding: SPACING.base,
     gap: SPACING.base,
     paddingBottom: SPACING.base,
+  },
+
+  emptyText: {
+    fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary,
+    textAlign: 'center', paddingVertical: SPACING.base,
+  },
+  contextText: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.semibold,
+    textAlign: 'center',
   },
 
   // 카드 공통
@@ -272,12 +386,6 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
     paddingVertical: SPACING.xs,
   },
-  editIconBtn: {
-    padding: SPACING.xs,
-  },
-  editIcon: {
-    fontSize: 16,
-  },
 
   // 완료 버튼
   footer: {
@@ -294,6 +402,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...SHADOW.md,
   },
+  completeBtnOff: { opacity: 0.6 },
   completeBtnText: {
     fontSize: TYPOGRAPHY.md,
     fontWeight: TYPOGRAPHY.bold,

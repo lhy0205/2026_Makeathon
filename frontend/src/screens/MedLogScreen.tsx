@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -9,31 +11,91 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MOCK_MED_CHECK } from '../constants/mockData';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
-import type { MedCheckGroup } from '../types';
+import { useActiveVisit } from '../hooks/useActiveVisit';
+import { useDoseDay } from '../hooks/useDoseDay';
+import { useHealthLogDay } from '../hooks/useHealthLogDay';
+import type { VisitResponse } from '../types/Api';
+import { toClockLabel, toLocalDate } from '../utils/datetime';
 
-const TODAY = '8월 23일 월요일';
-const TOTAL_DAYS = 7;
-const CURRENT_DAY = 5;
+const WEEKDAYS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+
+function todayLabel(): string {
+  const d = new Date();
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEKDAYS[d.getDay()]}`;
+}
+
+/** 'YYYY-MM-DD' 사이의 일수 (양끝 포함) */
+function daysBetween(from: string, to: string): number {
+  const a = new Date(from);
+  const b = new Date(to);
+  return Math.floor((b.getTime() - a.getTime()) / 86_400_000) + 1;
+}
+
+/** 복약 기간 중 오늘이 며칠째인지 */
+function medicationProgress(visit: VisitResponse | null, today: string) {
+  if (!visit?.medicationStartDate || !visit?.medicationEndDate) return null;
+
+  const total = daysBetween(visit.medicationStartDate, visit.medicationEndDate);
+  if (total <= 0) return null;
+
+  const elapsed = daysBetween(visit.medicationStartDate, today);
+  return { current: Math.min(total, Math.max(1, elapsed)), total };
+}
+
+// 자주 쓰는 값만 빠르게 누를 수 있게 — 정밀 조절은 상태 체크 화면에서 한다
+const SLEEP_CHOICES = [6, 7, 8, 9];
+const WATER_CHOICES = [500, 1000, 1500, 2000];
+
+const toLiterLabel = (ml: number) => (ml >= 1000 ? `${ml / 1000}L` : `${ml}ml`);
 
 export default function MedLogScreen() {
   const router = useRouter();
-  const [groups, setGroups] = useState<MedCheckGroup[]>(MOCK_MED_CHECK);
+  const today = toLocalDate();
 
-  const toggleItem = (groupIdx: number, itemIdx: number) => {
-    setGroups((prev) =>
-      prev.map((g, gi) =>
-        gi !== groupIdx
-          ? g
-          : {
-              ...g,
-              items: g.items.map((item, ii) =>
-                ii !== itemIdx ? item : { ...item, status: item.status === 'TAKEN' ? 'PENDING' as const : 'TAKEN' as const }
-              ),
-            }
-      )
-    );
+  const { visit } = useActiveVisit();
+  const { groups, loading, error, refresh, mark, total } = useDoseDay(today);
+  const { log, save } = useHealthLogDay(visit?.id ?? null, today);
+
+  const [savingField, setSavingField] = useState<'sleep' | 'water' | null>(null);
+
+  const progress = useMemo(() => medicationProgress(visit, today), [visit, today]);
+
+  const toggleDose = async (doseId: number, isTaken: boolean) => {
+    try {
+      // 서버에 'PENDING으로 되돌리기'가 없다. 체크 해제는 건너뜀으로 기록한다
+      await mark([doseId], isTaken ? 'SKIPPED' : 'TAKEN');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '기록하지 못했습니다.';
+      Alert.alert('기록 실패', message);
+    }
+  };
+
+  /** 칩 하나를 누르면 그 값만 바꾸고 나머지 하루치 기록은 그대로 둔다 */
+  const saveMetric = async (field: 'sleep' | 'water', value: number) => {
+    if (!visit) {
+      Alert.alert('기록할 치료가 없어요', '처방전을 먼저 등록해주세요.');
+      return;
+    }
+
+    setSavingField(field);
+    try {
+      await save({
+        symptomName: log?.symptomName ?? null,
+        symptomSeverity: log?.symptomSeverity ?? null,
+        sideEffects: log?.sideEffects ?? [],
+        bodyTemperature: log?.bodyTemperature ?? null,
+        sleepHours: field === 'sleep' ? value : (log?.sleepHours ?? null),
+        waterIntakeMl: field === 'water' ? value : (log?.waterIntakeMl ?? null),
+        activityMinutes: log?.activityMinutes ?? null,
+        memo: log?.memo ?? null,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '저장하지 못했습니다.';
+      Alert.alert('저장 실패', message);
+    } finally {
+      setSavingField(null);
+    }
   };
 
   return (
@@ -45,7 +107,7 @@ export default function MedLogScreen() {
         <TouchableOpacity style={styles.navBtn} onPress={() => router.back()}>
           <Text style={styles.navBtnText}>{'< 이전'}</Text>
         </TouchableOpacity>
-        <Text style={styles.navTitle}>{TODAY} 복약 기록</Text>
+        <Text style={styles.navTitle}>{todayLabel()} 복약 기록</Text>
         <TouchableOpacity style={styles.navBtn} onPress={() => router.push('/sideeffect')}>
           <Text style={styles.navBtnText}>{'다음 >'}</Text>
         </TouchableOpacity>
@@ -54,69 +116,114 @@ export default function MedLogScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* 복약 일수 진행 바 */}
-        <View style={styles.dayCard}>
-          <View style={styles.dayLabelRow}>
-            <Text style={styles.dayLabel}>복약 진행</Text>
-            <Text style={styles.dayCount}>{CURRENT_DAY}/{TOTAL_DAYS}일</Text>
+        {progress && (
+          <View style={styles.dayCard}>
+            <View style={styles.dayLabelRow}>
+              <Text style={styles.dayLabel}>복약 진행</Text>
+              <Text style={styles.dayCount}>{progress.current}/{progress.total}일</Text>
+            </View>
+            <View style={styles.dayBarBg}>
+              <View style={[
+                styles.dayBarFill,
+                { width: `${(progress.current / progress.total) * 100}%` },
+              ]} />
+            </View>
           </View>
-          <View style={styles.dayBarBg}>
-            <View style={[styles.dayBarFill, { width: `${(CURRENT_DAY / TOTAL_DAYS) * 100}%` }]} />
-          </View>
-        </View>
+        )}
+
+        {loading && <ActivityIndicator size="small" color={COLORS.primary} />}
+
+        {error && !loading && (
+          <TouchableOpacity style={styles.errorBox} onPress={refresh} activeOpacity={0.8}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorRetry}>다시 시도</Text>
+          </TouchableOpacity>
+        )}
+
+        {!loading && !error && total === 0 && (
+          <Text style={styles.emptyText}>오늘 복용할 약이 없습니다.</Text>
+        )}
 
         {/* 복약 그룹별 체크 목록 */}
-        {groups.map((group, gi) => (
+        {groups.map((group) => (
           <View key={group.period} style={styles.groupCard}>
             <Text style={styles.groupPeriod}>{group.period}</Text>
 
-            {group.items.map((item, ii) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.itemRow, item.status === 'TAKEN' && styles.itemRowTaken]}
-                onPress={() => toggleItem(gi, ii)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.checkbox, item.status === 'TAKEN' && styles.checkboxDone]}>
-                  {item.status === 'TAKEN' && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <View style={styles.itemInfo}>
-                  <Text style={[styles.itemTime, item.status === 'TAKEN' && styles.itemTimeTaken]}>
-                    {item.time} {item.status === 'TAKEN' ? '복용 완료' : '복용 미완료'}
-                  </Text>
-                  <Text style={styles.itemName}>
-                    {item.name} {item.dosage}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {group.doses.map((dose) => {
+              const isTaken = dose.doseStatus === 'TAKEN';
+              return (
+                <TouchableOpacity
+                  key={dose.id}
+                  style={[styles.itemRow, isTaken && styles.itemRowTaken]}
+                  onPress={() => toggleDose(dose.id, isTaken)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.checkbox, isTaken && styles.checkboxDone]}>
+                    {isTaken && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <View style={styles.itemInfo}>
+                    <Text style={[styles.itemTime, isTaken && styles.itemTimeTaken]}>
+                      {toClockLabel(dose.scheduledAt)} {isTaken ? '복용 완료' : '복용 미완료'}
+                    </Text>
+                    <Text style={styles.itemName}>{dose.medicationName}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         ))}
 
         {/* 스크롤 안내 문구 */}
         <Text style={styles.scrollHint}>
-          스크롤 내리면 수면시간/음수량도 기록할 수 있게
+          아래에서 수면시간과 음수량도 함께 기록할 수 있어요
         </Text>
 
         {/* 수면 / 음수 기록 카드 */}
         <View style={styles.extraCard}>
-          <Text style={styles.extraTitle}>수면 시간</Text>
+          <View style={styles.extraTitleRow}>
+            <Text style={styles.extraTitle}>수면 시간</Text>
+            {savingField === 'sleep' && <ActivityIndicator size="small" color={COLORS.primary} />}
+          </View>
           <View style={styles.extraRow}>
-            {['6시간', '7시간', '8시간', '9시간+'].map((v) => (
-              <TouchableOpacity key={v} style={styles.extraChip}>
-                <Text style={styles.extraChipText}>{v}</Text>
-              </TouchableOpacity>
-            ))}
+            {SLEEP_CHOICES.map((hours, idx) => {
+              const on = log?.sleepHours === hours;
+              const label = idx === SLEEP_CHOICES.length - 1 ? `${hours}시간+` : `${hours}시간`;
+              return (
+                <TouchableOpacity
+                  key={hours}
+                  style={[styles.extraChip, on && styles.extraChipOn]}
+                  onPress={() => saveMetric('sleep', hours)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.extraChipText, on && styles.extraChipTextOn]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
         <View style={styles.extraCard}>
-          <Text style={styles.extraTitle}>음수량</Text>
+          <View style={styles.extraTitleRow}>
+            <Text style={styles.extraTitle}>음수량</Text>
+            {savingField === 'water' && <ActivityIndicator size="small" color={COLORS.primary} />}
+          </View>
           <View style={styles.extraRow}>
-            {['500ml', '1L', '1.5L', '2L+'].map((v) => (
-              <TouchableOpacity key={v} style={styles.extraChip}>
-                <Text style={styles.extraChipText}>{v}</Text>
-              </TouchableOpacity>
-            ))}
+            {WATER_CHOICES.map((ml, idx) => {
+              const on = log?.waterIntakeMl === ml;
+              const label = idx === WATER_CHOICES.length - 1
+                ? `${toLiterLabel(ml)}+`
+                : toLiterLabel(ml);
+              return (
+                <TouchableOpacity
+                  key={ml}
+                  style={[styles.extraChip, on && styles.extraChipOn]}
+                  onPress={() => saveMetric('water', ml)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.extraChipText, on && styles.extraChipTextOn]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
@@ -161,6 +268,17 @@ const styles = StyleSheet.create({
     padding: SPACING.base,
     gap: SPACING.base,
     paddingBottom: SPACING.base,
+  },
+
+  errorBox: {
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.md,
+    padding: SPACING.base, alignItems: 'center', gap: SPACING.xs,
+  },
+  errorText: { fontSize: TYPOGRAPHY.sm, color: COLORS.error, textAlign: 'center' },
+  errorRetry: { fontSize: TYPOGRAPHY.xs, color: COLORS.primary, fontWeight: TYPOGRAPHY.bold },
+  emptyText: {
+    fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary,
+    textAlign: 'center', paddingVertical: SPACING.xl,
   },
 
   // 복약 일수 바
@@ -273,6 +391,11 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     ...SHADOW.sm,
   },
+  extraTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
   extraTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: TYPOGRAPHY.bold,
@@ -290,9 +413,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.primary,
   },
+  extraChipOn: {
+    backgroundColor: COLORS.primary,
+  },
   extraChipText: {
     fontSize: TYPOGRAPHY.sm,
     color: COLORS.primary,
     fontWeight: TYPOGRAPHY.medium,
+  },
+  extraChipTextOn: {
+    color: COLORS.white,
+    fontWeight: TYPOGRAPHY.bold,
   },
 });

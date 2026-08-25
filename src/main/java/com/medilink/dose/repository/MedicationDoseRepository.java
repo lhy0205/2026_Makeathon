@@ -26,4 +26,7 @@ public interface MedicationDoseRepository extends JpaRepository<MedicationDose, 
 
     // 시각화(visualization) 도메인에서 특정 방문의 복약률을 계산할 때 사용.
     List<MedicationDose> findAllByMedicationPrescriptionVisitId(Long visitId);
+
+    // 치료 한 건의 복약 일정 전체. 앱의 복약 진행률 표시에 쓴다.
+    List<MedicationDose> findAllByMedicationPrescriptionVisitIdOrderByScheduledAt(Long visitId);
 }
