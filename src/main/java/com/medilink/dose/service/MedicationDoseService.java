@@ -1,8 +1,10 @@
 package com.medilink.dose.service;
 
 import com.medilink.dose.dto.CreateDosesRequest;
+import com.medilink.dose.dto.BatchDoseUpdateRequest;
 import com.medilink.dose.dto.MarkDoseTakenRequest;
 import com.medilink.dose.dto.MedicationDoseResponse;
+import com.medilink.dose.entity.DoseStatus;
 import com.medilink.dose.entity.MedicationDose;
 import com.medilink.dose.repository.MedicationDoseRepository;
 import com.medilink.global.exception.ApiException;
@@ -106,6 +108,45 @@ public class MedicationDoseService {
         dose.markSkipped();
 
         return MedicationDoseResponse.from(dose);
+    }
+
+    @Transactional
+    public List<MedicationDoseResponse> updateDosesBatch(
+            Long userId,
+            List<BatchDoseUpdateRequest> requests
+    ) {
+        List<MedicationDoseResponse> responses = new ArrayList<>();
+
+        for (BatchDoseUpdateRequest request : requests) {
+            MedicationDose dose = getOwnedDose(userId, request.doseId());
+            updateDose(dose, request);
+            responses.add(MedicationDoseResponse.from(dose));
+        }
+
+        return responses;
+    }
+
+    private void updateDose(MedicationDose dose, BatchDoseUpdateRequest request) {
+        if (request.status() == DoseStatus.TAKEN) {
+            if (request.takenAt() == null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "복용 완료 시간은 필수입니다.");
+            }
+
+            if (dose.getDoseStatus() != DoseStatus.TAKEN
+                    || !request.takenAt().equals(dose.getTakenAt())) {
+                dose.markTaken(request.takenAt());
+            }
+            return;
+        }
+
+        if (request.status() == DoseStatus.SKIPPED) {
+            if (dose.getDoseStatus() != DoseStatus.SKIPPED) {
+                dose.markSkipped();
+            }
+            return;
+        }
+
+        throw new ApiException(HttpStatus.BAD_REQUEST, "배치 복약 상태는 TAKEN 또는 SKIPPED만 사용할 수 있습니다.");
     }
 
     private MedicationDose getOwnedDose(Long userId, Long doseId) {

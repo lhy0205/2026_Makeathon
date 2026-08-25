@@ -25,13 +25,16 @@ public class MedicationService {
         Medication medication = getOwnedMedication(userId, medicationId);
         medication.update(
                 request.medicationName(),
+                request.itemSeq(),
                 request.dosage(),
                 request.doseUnit(),
                 request.frequencyPerDay(),
                 request.durationDays(),
                 request.instructions(),
                 request.purpose(),
-                request.sideEffectSummary()
+                request.sideEffectSummary(),
+                request.confidence(),
+                Boolean.TRUE.equals(request.unmatched())
         );
 
         return MedicationResponse.from(medication);

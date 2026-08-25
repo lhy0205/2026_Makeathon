@@ -29,4 +29,11 @@ public interface MedicationDoseRepository extends JpaRepository<MedicationDose, 
 
     // 치료 한 건의 복약 일정 전체. 앱의 복약 진행률 표시에 쓴다.
     List<MedicationDose> findAllByMedicationPrescriptionVisitIdOrderByScheduledAt(Long visitId);
+
+    List<MedicationDose> findAllByDoseStatusAndScheduledAtBefore(
+            DoseStatus status,
+            LocalDateTime scheduledAt
+    );
+
+    long countByDoseStatus(DoseStatus status);
 }

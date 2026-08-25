@@ -1,6 +1,7 @@
 package com.medilink.medication.repository;
 
 import com.medilink.medication.entity.Medication;
+import com.medilink.visit.entity.TreatmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -11,4 +12,13 @@ public interface MedicationRepository extends JpaRepository<Medication, Long> {
     List<Medication> findAllByPrescriptionIdOrderById(Long prescriptionId);
 
     Optional<Medication> findByIdAndPrescriptionVisitUserId(Long id, Long userId);
+
+    List<Medication> findAllByPrescriptionVisitUserIdAndPrescriptionVisitTreatmentStatusNotOrderById(
+            Long userId,
+            TreatmentStatus treatmentStatus
+    );
+
+    List<Medication> findAllByOcrUnmatchedTrueOrderByCreatedAtDesc();
+
+    long countByOcrUnmatchedTrue();
 }

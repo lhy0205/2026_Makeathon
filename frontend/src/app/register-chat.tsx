@@ -133,6 +133,7 @@ export default function RegisterChatScreen() {
       // 2) 처방전과 약 목록을 확정한다
       const medications: MedicationRequest[] = draft.medications.map((m) => ({
         medicationName: m.medicationName,
+        itemSeq: m.itemSeq,
         dosage: m.dosage,
         doseUnit: m.doseUnit,
         frequencyPerDay: m.frequencyPerDay,
@@ -140,10 +141,12 @@ export default function RegisterChatScreen() {
         instructions: m.instructions,
         purpose: m.purpose,
         sideEffectSummary: m.sideEffectSummary,
+        confidence: m.confidence,
+        unmatched: m.unmatched,
       }));
 
       const prescription = await prescriptionApi.create(draft.visitId, {
-        imageUrl: null,
+        imageUrl: draft.imageUrl,
         rawOcrText: draft.rawOcrText,
         medications,
       });

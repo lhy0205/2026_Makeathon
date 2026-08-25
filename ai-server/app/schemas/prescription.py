@@ -27,6 +27,7 @@ class AnalyzedMedication(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     medication_name: str
+    item_seq: str | None = None
     dosage: float | None = None
     dose_unit: str | None = None
     frequency_per_day: int | None = None
@@ -47,3 +48,4 @@ class PrescriptionAnalysisResult(BaseModel):
     hospital_name: str | None = None
     department_name: str | None = None
     medications: list[AnalyzedMedication] = []
+    image_url: str | None = None

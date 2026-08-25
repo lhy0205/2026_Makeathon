@@ -18,6 +18,7 @@ def test_all_internal_routes_are_registered() -> None:
     expected_paths = [
         "/internal/v1/health",
         "/internal/v1/chat",
+        "/internal/v1/chat/stream",
         "/internal/v1/prescriptions/analyze",
         "/internal/v1/knowledge/reindex",
         "/internal/v1/reports/generate",

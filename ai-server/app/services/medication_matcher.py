@@ -13,6 +13,7 @@ def match_medication(parsed: ParsedMedication) -> AnalyzedMedication:
     side_effect_summary = None
     confidence = 0.0
     unmatched = True
+    item_seq = None
 
     if results:
         doc, score = results[0]
@@ -21,9 +22,11 @@ def match_medication(parsed: ParsedMedication) -> AnalyzedMedication:
             unmatched = False
             purpose = doc.metadata.get("purpose")
             side_effect_summary = doc.metadata.get("side_effects")
+            item_seq = doc.metadata.get("item_seq")
 
     return AnalyzedMedication(
         medication_name=parsed.medication_name,
+        item_seq=item_seq,
         dosage=parsed.dosage,
         dose_unit=parsed.dose_unit,
         frequency_per_day=parsed.frequency_per_day,

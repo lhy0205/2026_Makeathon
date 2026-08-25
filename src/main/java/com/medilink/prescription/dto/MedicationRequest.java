@@ -7,12 +7,15 @@ import java.math.BigDecimal;
 public record MedicationRequest(
         @NotBlank(message = "약 이름을 입력해 주세요.")
         String medicationName,
+        String itemSeq,
         BigDecimal dosage,
         String doseUnit,
         Integer frequencyPerDay,
         Integer durationDays,
         String instructions,
         String purpose,
-        String sideEffectSummary
+        String sideEffectSummary,
+        Double confidence,
+        Boolean unmatched
 ) {
 }

@@ -6,6 +6,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import settings
 from app.services.vector_store import reset_vector_store
+from app.schemas.knowledge import KnowledgeEntryInput
 
 
 def _load_documents() -> list[Document]:
@@ -33,8 +34,32 @@ def _load_documents() -> list[Document]:
     return documents
 
 
-def reindex_knowledge_base() -> tuple[int, int]:
-    documents = _load_documents()
+def _documents_from_entries(entries: list[KnowledgeEntryInput]) -> list[Document]:
+    documents = []
+
+    for entry in entries:
+        content = (
+            f"{entry.medication_name}\n"
+            f"효능/목적: {entry.purpose or ''}\n"
+            f"주요 부작용: {entry.side_effects or ''}"
+        )
+        documents.append(
+            Document(
+                page_content=content,
+                metadata={
+                    "title": entry.medication_name,
+                    "item_seq": entry.item_seq,
+                    "purpose": entry.purpose or "",
+                    "side_effects": entry.side_effects or "",
+                },
+            )
+        )
+
+    return documents
+
+
+def reindex_knowledge_base(entries: list[KnowledgeEntryInput] | None = None) -> tuple[int, int]:
+    documents = _documents_from_entries(entries) if entries else _load_documents()
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_documents(documents)
 

@@ -14,6 +14,7 @@ export interface RegistrationDraft {
   /** 'YYYY-MM-DD' */
   visitedAt: string;
   rawOcrText: string | null;
+  imageUrl: string | null;
   medications: AnalyzedMedication[];
   imageUri: string | null;
 }

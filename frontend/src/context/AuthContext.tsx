@@ -63,13 +63,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login({ email, password });
-    await tokenStorage.set(res.accessToken);
+    await tokenStorage.setTokens(res.accessToken, res.refreshToken);
     setUser(res.user);
   }, []);
 
   const register = useCallback(async (email: string, password: string, nickname: string) => {
     const res = await authApi.register({ email, password, nickname });
-    await tokenStorage.set(res.accessToken);
+    await tokenStorage.setTokens(res.accessToken, res.refreshToken);
     setUser(res.user);
   }, []);
 

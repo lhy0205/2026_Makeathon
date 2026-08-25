@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     nickname VARCHAR(100) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'USER',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_users_email (email)
@@ -112,6 +113,7 @@ CREATE TABLE IF NOT EXISTS medications (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     prescription_id BIGINT NOT NULL,
     medication_name VARCHAR(255) NOT NULL,
+    item_seq VARCHAR(20),
     dosage DECIMAL(10,2),
     dose_unit VARCHAR(20),
     frequency_per_day INT,
@@ -119,6 +121,8 @@ CREATE TABLE IF NOT EXISTS medications (
     instructions VARCHAR(500),
     purpose TEXT,
     side_effect_summary TEXT,
+    ocr_confidence DOUBLE,
+    ocr_unmatched BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_medications_prescription_id (prescription_id),
     CONSTRAINT fk_medications_prescription
@@ -150,6 +154,66 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     CONSTRAINT fk_push_tokens_user
         FOREIGN KEY (user_id) REFERENCES users (id)
         ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_refresh_tokens_hash (token_hash),
+    KEY idx_refresh_tokens_user_id (user_id),
+    CONSTRAINT fk_refresh_tokens_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prescription_corrections (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    prescription_id BIGINT NOT NULL,
+    ocr_text VARCHAR(500) NOT NULL,
+    corrected_name VARCHAR(255) NOT NULL,
+    item_seq VARCHAR(20),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_prescription_corrections_prescription_id (prescription_id),
+    CONSTRAINT fk_prescription_corrections_prescription
+        FOREIGN KEY (prescription_id) REFERENCES prescriptions (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS medication_interactions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    medication_a_id BIGINT NOT NULL,
+    medication_b_id BIGINT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    severity VARCHAR(30) NOT NULL,
+    reason TEXT,
+    source VARCHAR(255) NOT NULL,
+    checked_at TIMESTAMP NOT NULL,
+    KEY idx_medication_interactions_user_id (user_id),
+    CONSTRAINT fk_interactions_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_interactions_medication_a
+        FOREIGN KEY (medication_a_id) REFERENCES medications (id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_interactions_medication_b
+        FOREIGN KEY (medication_b_id) REFERENCES medications (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS knowledge_entries (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    item_seq VARCHAR(20) NOT NULL,
+    medication_name VARCHAR(255) NOT NULL,
+    purpose TEXT,
+    side_effects TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_knowledge_entries_item_seq (item_seq)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;

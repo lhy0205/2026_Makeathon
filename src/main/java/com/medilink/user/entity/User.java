@@ -3,6 +3,8 @@ package com.medilink.user.entity;
 import com.medilink.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -30,10 +32,15 @@ public class User extends BaseTimeEntity {
     @Column(nullable = false, length = 100)
     private String nickname;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'USER'")
+    private UserRole role;
+
     public User(String email, String passwordHash, String nickname) {
         this.email = email;
         this.passwordHash = passwordHash;
         this.nickname = nickname;
+        this.role = UserRole.USER;
     }
 
     public void updateNickname(String nickname) {

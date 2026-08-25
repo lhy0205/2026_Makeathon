@@ -3,6 +3,7 @@ package com.medilink.prescription.service;
 import com.medilink.ai.client.AiClient;
 import com.medilink.ai.dto.PrescriptionAnalysisResult;
 import com.medilink.global.exception.ApiException;
+import com.medilink.interaction.event.PrescriptionConfirmedEvent;
 import com.medilink.medication.entity.Medication;
 import com.medilink.medication.repository.MedicationRepository;
 import com.medilink.prescription.dto.ConfirmPrescriptionRequest;
@@ -11,9 +12,12 @@ import com.medilink.prescription.dto.MedicationResponse;
 import com.medilink.prescription.dto.PrescriptionResponse;
 import com.medilink.prescription.entity.Prescription;
 import com.medilink.prescription.repository.PrescriptionRepository;
+import com.medilink.prescription.storage.PrescriptionImageStorage;
+import com.medilink.prescription.storage.StoredPrescriptionImage;
 import com.medilink.visit.entity.Visit;
 import com.medilink.visit.service.VisitService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +34,8 @@ public class PrescriptionService {
     private final VisitService visitService;
     private final PrescriptionRepository prescriptionRepository;
     private final MedicationRepository medicationRepository;
+    private final PrescriptionImageStorage prescriptionImageStorage;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public PrescriptionAnalysisResult scanPrescription(
@@ -39,11 +45,17 @@ public class PrescriptionService {
     ) {
         visitService.getOwnedVisit(userId, visitId);
 
-        if (image.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "처방전 이미지를 선택해 주세요.");
-        }
+        PrescriptionAnalysisResult analysis = aiClient.analyzePrescription(image);
+        String storageKey = prescriptionImageStorage.save(image);
+        String imageUrl = "/api/v1/prescription-images/" + storageKey;
 
-        return aiClient.analyzePrescription(image);
+        return new PrescriptionAnalysisResult(
+                analysis.rawOcrText(),
+                analysis.hospitalName(),
+                analysis.departmentName(),
+                analysis.medications(),
+                imageUrl
+        );
     }
 
     @Transactional
@@ -53,9 +65,10 @@ public class PrescriptionService {
             ConfirmPrescriptionRequest request
     ) {
         Visit visit = visitService.getOwnedVisit(userId, visitId);
+        String storageKey = prescriptionImageStorage.extractStorageKey(request.imageUrl());
         Prescription prescription = new Prescription(
                 visit,
-                request.imageUrl(),
+                storageKey,
                 request.rawOcrText()
         );
 
@@ -69,6 +82,7 @@ public class PrescriptionService {
 
         List<Medication> savedMedications = medicationRepository.saveAll(medications);
         visit.startTreatment();
+        eventPublisher.publishEvent(new PrescriptionConfirmedEvent(userId));
 
         return createResponse(savedPrescription, savedMedications);
     }
@@ -85,6 +99,14 @@ public class PrescriptionService {
         return createResponse(prescription, medications);
     }
 
+    @Transactional(readOnly = true)
+    public StoredPrescriptionImage getPrescriptionImage(Long userId, Long prescriptionId) {
+        Prescription prescription = prescriptionRepository.findByIdAndVisitUserId(prescriptionId, userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "처방전을 찾을 수 없습니다."));
+
+        return prescriptionImageStorage.load(prescription.getImageUrl());
+    }
+
     private Medication createMedication(
             Prescription prescription,
             MedicationRequest request
@@ -92,13 +114,16 @@ public class PrescriptionService {
         return new Medication(
                 prescription,
                 request.medicationName(),
+                request.itemSeq(),
                 request.dosage(),
                 request.doseUnit(),
                 request.frequencyPerDay(),
                 request.durationDays(),
                 request.instructions(),
                 request.purpose(),
-                request.sideEffectSummary()
+                request.sideEffectSummary(),
+                request.confidence(),
+                Boolean.TRUE.equals(request.unmatched())
         );
     }
 
