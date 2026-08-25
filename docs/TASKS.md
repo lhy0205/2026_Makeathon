@@ -22,9 +22,9 @@ BE-1과 AI-1을 먼저 붙이지 않으면 BE-2·BE-3은 시작할 수 없다.
 DUR 조회 키를 확보한다.
 
 - `Medication` 엔티티에 `itemSeq VARCHAR(20)` 추가
-- `db/init/01_schema.sql`의 `medications` 테이블에 컬럼 추가
+- `shared/backend/db/init/01_schema.sql`의 `medications` 테이블에 컬럼 추가
 - `MedicationRequest` · `MedicationResponse` · `ai/dto/AnalyzedMedication`에 `itemSeq` 필드 추가
-- `frontend/src/types/Api.ts`도 **같은 PR에서** 함께 고친다
+- `app/frontend/src/types/Api.ts`도 **같은 PR에서** 함께 고친다
 
 **완료 기준** — 처방전을 확정하면 `medications.item_seq`가 채워진다 (AI-1이 값을 실어 보낸 경우).
 
@@ -33,7 +33,7 @@ DUR 조회 키를 확보한다.
 
 - 새 패키지 `com.medilink.interaction`
 - `DurClient` — 공공데이터포털 DUR 병용금기 API(`getUsjntTabooInfoList02`) 호출
-- `application.properties`에 `dur.service-key`, `dur.base-url` 추가 (키는 `.env`로)
+- `shared/backend/src/main/resources/application.properties`에 `dur.service-key`, `dur.base-url` 추가 (키는 `.env`로)
 - 외부 API가 죽어도 앱은 살아야 한다 — 실패 시 빈 결과를 돌려주고 로그만 남긴다
 - 응답을 캐시한다 (같은 조합을 매번 물어보지 않는다)
 
@@ -119,13 +119,13 @@ DUR 조회 키를 확보한다.
 ### BE-10. 백엔드 테스트
 > 규모 M · 선행 없음 · **지금 0건**
 
-`src/test/`가 비어 있다. 의존성(`spring-boot-starter-test`, H2)은 이미 들어 있다.
+`shared/backend/src/test/`가 비어 있다. 의존성(`spring-boot-starter-test`, H2)은 이미 들어 있다.
 
 - 인증: 가입 → 로그인 → `/users/me`
 - 처방전: 스캔 → 확정 → 복약 일정 생성
 - 복약: 체크 → 복약률 계산
 
-**완료 기준** — `./gradlew test`가 통과하고, 위 세 경로가 실제로 돈다.
+**완료 기준** — `./gradlew test` (shared/backend)가 통과하고, 위 세 경로가 실제로 돈다.
 
 ### BE-11. 권한 모델
 > 규모 M · 선행 없음 · **관리자 웹 전체의 전제**
@@ -156,12 +156,12 @@ DUR 조회 키를 확보한다.
 ### AI-1. 지식베이스 실데이터화
 > 규모 L · 선행 없음 · **최우선** · BE-1과 짝
 
-지금 `app/data/knowledge_base/medications.json`에 의약품이 **8건**뿐이다.
+지금 `shared/ai/app/data/knowledge_base/medications.json`에 의약품이 **8건**뿐이다.
 챗봇 답변과 약 정보 보강이 전부 여기서 나오므로, 시연에서 금방 바닥이 보인다.
 
 - 식약처 e약은요 API(`DrbEasyDrugInfoService`)로 의약품 정보를 받아온다
 - **`item_seq`(품목기준코드)를 반드시 포함한다** — BE-2의 DUR 조회 키다
-- `knowledge_indexer.py`로 재색인
+- `shared/ai/app/services/knowledge_indexer.py`로 재색인
 - 수집 스크립트를 저장소에 남긴다 (한 번 돌리고 끝이 아니다)
 
 **완료 기준** — 1,000건 이상 색인되고, 흔한 약(타이레놀·아모크시실린·세티리진 등)을 챗봇이 안다.
@@ -169,7 +169,7 @@ DUR 조회 키를 확보한다.
 ### AI-2. OCR 전처리
 > 규모 M · 선행 없음
 
-지금 `ocr_service.py`가 Tesseract에 원본을 그대로 넣는다.
+지금 `shared/ai/app/services/ocr_service.py`가 Tesseract에 원본을 그대로 넣는다.
 
 - 기울기 보정 · 이진화 · 노이즈 제거 (OpenCV 또는 Pillow)
 - 처방전 표 영역만 잘라내면 더 좋다
@@ -179,7 +179,7 @@ DUR 조회 키를 확보한다.
 ### AI-3. 약품명 퍼지 매칭
 > 규모 M · 선행 AI-1, BE-8
 
-`medication_matcher.py`는 벡터 유사도 하나로만 판단한다.
+`shared/ai/app/services/medication_matcher.py`는 벡터 유사도 하나로만 판단한다.
 
 - RapidFuzz 등으로 문자열 거리 폴백 추가
 - 백엔드 교정 데이터(`GET /internal/v1/corrections`)를 사전으로 반영
@@ -190,8 +190,8 @@ DUR 조회 키를 확보한다.
 ### AI-4. 챗봇 스트리밍
 > 규모 M · 선행 없음 · BE-5와 짝
 
-- `app/routers/chat.py`를 `StreamingResponse`로
-- `graphs/chat_graph.py`가 토큰을 흘리도록
+- `shared/ai/app/routers/chat.py`를 `StreamingResponse`로
+- `shared/ai/app/graphs/chat_graph.py`가 토큰을 흘리도록
 
 **완료 기준** — `curl -N`으로 답변이 조금씩 나온다.
 
@@ -246,7 +246,7 @@ DUR 조회 키를 확보한다.
 ### FE-6. ID · 비밀번호 찾기
 > 규모 S · 선행 백엔드 엔드포인트
 
-`src/app/findaccount.tsx`는 화면만 있고 서버 연동이 없다. 지금은 가짜 알림만 띄운다.
+`app/frontend/src/app/findaccount.tsx`는 화면만 있고 서버 연동이 없다. 지금은 가짜 알림만 띄운다.
 
 ---
 
@@ -257,8 +257,8 @@ DUR 조회 키를 확보한다.
 ### AD-1. 프로젝트 셋업과 로그인
 > 규모 M · 선행 BE-11
 
-- `admin/` 디렉터리에 React + Vite + TypeScript
-- `frontend/src/types/Api.ts`를 `shared/`로 빼서 같이 쓴다 (API가 바뀌면 양쪽이 동시에 컴파일 에러를 낸다)
+- `web/frontend/` 디렉터리에 React + Vite + TypeScript
+- `app/frontend/src/types/Api.ts`를 `shared/`로 빼서 같이 쓴다 (API가 바뀌면 양쪽이 동시에 컴파일 에러를 낸다)
 - 관리자 로그인 + role 확인
 
 ### AD-2. 대시보드
@@ -282,7 +282,7 @@ DUR 조회 키를 확보한다.
 ### OP-1. CI
 > 규모 S
 
-GitHub Actions — `gradlew build` + `tsc --noEmit` + `expo lint`.
+GitHub Actions — `./gradlew build` (shared/backend) + `tsc --noEmit` + `expo lint`.
 트랙 넷이 동시에 움직이면 이게 없으면 깨진 걸 늦게 안다.
 
 ### OP-2. 시드 데이터
@@ -340,6 +340,6 @@ DUR 경고가 이 팀의 기술적 하이라이트가 될 가능성이 높다. �
 
 - 브랜치는 `feat/<티켓번호>-<요약>` — 예: `feat/BE-3-interaction-check`
 - `main`에 직접 커밋하지 않는다
-- **API 계약이 바뀌면 백엔드 DTO와 `frontend/src/types/Api.ts`를 같은 PR에서 고친다.** 따로 고치면 조용히 깨진다
+- **API 계약이 바뀌면 백엔드 DTO와 `app/frontend/src/types/Api.ts`를 같은 PR에서 고친다.** 따로 고치면 조용히 깨진다
 - 하루 한 번 `main` 리베이스
 - PR 올리기 전에 각자 `./gradlew build` · `npx tsc --noEmit` · `npm run lint`

@@ -1,19 +1,33 @@
+# ── 공통 ─────────────────────────────────────
 .env
-.gradle/
-.gradle-user-home/
-.pnpm-store/
-build/
-out/
 .idea/
 .vscode/
 *.iml
-uploads/
+out/
 
-# ai-server (Python)
-ai-server/.venv/
-ai-server/__pycache__/
-ai-server/**/__pycache__/
-ai-server/chroma_db/
-ai-server/tessdata/
-ai-server/.env
-ai-server/data/
+# ── 백엔드 (Gradle) ──────────────────────────
+.gradle/
+.gradle-user-home/
+build/
+shared/backend/.gradle/
+shared/backend/build/
+shared/backend/.env
+# 처방전 이미지 저장 위치 (PrescriptionImageStorage)
+uploads/
+shared/backend/uploads/
+
+# ── AI 서버 (Python) ─────────────────────────
+shared/ai/.venv/
+shared/ai/__pycache__/
+shared/ai/**/__pycache__/
+shared/ai/.pytest_cache/
+shared/ai/chroma_db/
+shared/ai/tessdata/
+shared/ai/.env
+# 약 이름 매칭 로그 (match_log.jsonl)
+shared/ai/data/
+
+# ── 프론트엔드 (앱·웹 공통) ──────────────────
+.pnpm-store/
+node_modules/
+dist/
