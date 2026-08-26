@@ -92,6 +92,51 @@ def _known_medications() -> dict[str, dict]:
     return index
 
 
+@lru_cache
+def _atc_lexicon() -> dict[str, dict]:
+    """심평원 ATC 매핑 목록에서 만든 제품명 사전 (정규화한 이름 → 분류).
+
+    지식베이스보다 훨씬 넓다 (약 19,000종 대 4,700종). 대신 효능·부작용이
+    없고 분류만 있다. 그래서 '이 약이 무엇인지' 판단에만 쓰고,
+    효능 설명을 여기서 끌어다 쓰지는 않는다 — 같은 약효군이라고 해서
+    부작용까지 같지는 않기 때문이다.
+
+    scripts/import_atc.py로 만든다. 없으면 조용히 비워 둔다.
+    """
+    data_file = Path(settings.knowledge_base_dir) / "atc_map.json"
+    try:
+        return json.loads(data_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _is_known_product(name: str) -> dict | None:
+    """지식베이스에 없더라도 실제로 유통되는 약인지 본다.
+
+    이 구분이 관리자 화면에서 중요하다. 지금은 '아목시실린캡슐'(정보만 없는
+    실제 약)과 '자동차타이어'(인식 실패)가 똑같이 실패로 쌓여서,
+    무엇을 채워 넣어야 하는지 알 수 없다.
+    """
+    lexicon = _atc_lexicon()
+    if not lexicon:
+        return None
+
+    target = normalize(name)
+    if not target:
+        return None
+
+    if target in lexicon:
+        return lexicon[target]
+
+    # 오독을 감안하되 지식베이스보다 엄격하게 본다. 후보가 19,000개라
+    # 느슨하게 잡으면 엉뚱한 제품에 붙기 쉽다
+    match = process.extractOne(target, lexicon.keys(), scorer=fuzz.WRatio)
+    if match and match[1] >= 95:
+        return lexicon[match[0]]
+
+    return None
+
+
 def _typo_budget(length: int) -> int:
     """이 길이의 이름에서 몇 글자까지 잘못 읽힌 걸로 봐줄지."""
     if length >= _LONG_NAME_LENGTH:
@@ -203,6 +248,16 @@ def match_medication(parsed: ParsedMedication) -> AnalyzedMedication:
 
     matched_name = entry.get("name") if entry else None
 
+    # 못 찾았을 때만 본다. 찾았으면 이미 답이 나온 것이다
+    known = _is_known_product(name) if entry is None else None
+    if known:
+        logger.info(
+            "지식베이스에는 없지만 실제 유통 제품입니다: %s → %s (ATC %s)",
+            name,
+            known["name"],
+            known["atc"],
+        )
+
     record_match(
         query=name,
         matched=matched_name,
@@ -210,6 +265,8 @@ def match_medication(parsed: ParsedMedication) -> AnalyzedMedication:
         confidence=confidence,
         vector_score=vector_score,
         fuzzy_score=fuzzy_score,
+        known_product=known["name"] if known else None,
+        atc=known["atc"] if known else None,
     )
 
     return AnalyzedMedication(

@@ -47,26 +47,32 @@ class OcrEngine(Protocol):
 # ── Tesseract ────────────────────────────────
 
 
+# 윈도우 기본 설치 경로. 리눅스에서는 PATH에 들어 있다
+_WINDOWS_TESSERACT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+
+
 def _resolve_tesseract_cmd() -> str:
     """tesseract 실행파일을 찾는다.
+
+    설정값을 그대로 믿지 않고 실제로 있는지 확인한다. 이유가 둘이다.
 
     .env에 TESSERACT_CMD= 처럼 빈 값이 있으면 pydantic이 그 빈 문자열로
     기본값을 덮어쓴다. 그러면 pytesseract가 실행파일 경로 자리에 ''를 넘겨
     CreateProcess가 WinError 87로 죽는다 — 원인이 전혀 드러나지 않는 실패다.
-    빈 값은 '설정하지 않음'으로 보고 직접 찾는다.
+
+    그리고 기본값이 윈도우 경로라서, 리눅스 서버에서는 있지도 않은 경로를
+    그대로 넘기게 된다. 없는 경로면 없는 셈 치고 PATH에서 찾는다.
     """
     configured = (settings.tesseract_cmd or "").strip()
-    if configured:
+    if configured and (Path(configured).exists() or shutil.which(configured)):
         return configured
 
     found = shutil.which("tesseract")
     if found:
         return found
 
-    # 윈도우 기본 설치 경로
-    default = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
-    if default.exists():
-        return str(default)
+    if _WINDOWS_TESSERACT.exists():
+        return str(_WINDOWS_TESSERACT)
 
     # 여기까지 왔으면 못 찾은 것이다. pytesseract가 이름으로 찾아보게 둔다
     logger.warning("tesseract 실행파일을 찾지 못했습니다. TESSERACT_CMD를 설정하세요.")
@@ -81,7 +87,12 @@ class TesseractEngine:
 
         self._pytesseract = pytesseract
         pytesseract.pytesseract.tesseract_cmd = _resolve_tesseract_cmd()
-        self._tessdata = str(Path(settings.tessdata_dir).resolve())
+
+        # 언어 데이터를 저장소에 같이 두는 배포에서는 이 폴더를 가리켜야 한다.
+        # 없으면 지정하지 않는다 — apt로 설치한 서버는 tesseract가 알아서 찾고,
+        # 없는 경로를 넘기면 오히려 '언어 데이터 없음'으로 실패한다.
+        tessdata = Path(settings.tessdata_dir)
+        self._tessdata = str(tessdata.resolve()) if tessdata.is_dir() else None
 
     def read(self, image: Image.Image) -> list[TextBox]:
         prepared = preprocess.binarize_for_tesseract(image)
@@ -99,10 +110,14 @@ class TesseractEngine:
         return boxes
 
     def _read_with(self, image: Image.Image, psm: int) -> list[TextBox]:
+        config = f"--psm {psm}"
+        if self._tessdata:
+            config = f"--tessdata-dir {self._tessdata} {config}"
+
         data = self._pytesseract.image_to_data(
             image,
             lang="kor+eng",
-            config=f"--tessdata-dir {self._tessdata} --psm {psm}",
+            config=config,
             output_type=self._pytesseract.Output.DICT,
         )
 

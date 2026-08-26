@@ -33,8 +33,15 @@ def record_match(
     confidence: float,
     vector_score: float,
     fuzzy_score: float,
+    known_product: str | None = None,
+    atc: str | None = None,
 ) -> None:
-    """기록에 실패해도 분석 자체는 계속되어야 한다."""
+    """기록에 실패해도 분석 자체는 계속되어야 한다.
+
+    known_product는 '지식베이스에는 없지만 심평원 목록에 있는 실제 제품'이다.
+    이게 채워진 실패와 비어 있는 실패는 손쓸 방법이 다르다.
+    전자는 지식베이스에 채워 넣으면 되고, 후자는 인식 자체가 틀린 것이다.
+    """
     entry = {
         "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "query": query,
@@ -44,6 +51,8 @@ def record_match(
         "vectorScore": round(vector_score, 3),
         "fuzzyScore": round(fuzzy_score, 3),
         "unmatched": matched is None,
+        "knownProduct": known_product,
+        "atc": atc,
     }
 
     try:

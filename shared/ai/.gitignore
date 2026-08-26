@@ -3,4 +3,10 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-data/
+
+# 약 이름 매칭 로그 (match_log.jsonl). 앞의 / 가 없으면 app/data 까지 묻힌다
+/data/
+
+# 심평원 ATC 목록에서 만든 이름 사전. 8MB짜리 파생물이라 저장소에 넣지 않는다.
+# scripts/import_atc.py 로 다시 만든다 (원본 CSV는 공공데이터포털에 있다)
+app/data/knowledge_base/atc_map.json

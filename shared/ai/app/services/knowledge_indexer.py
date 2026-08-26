@@ -15,12 +15,31 @@ def _load_documents() -> list[Document]:
 
     documents = []
     for entry in entries:
-        content = (
-            f"{entry['name']} ({entry.get('ingredient', '')})\n"
-            f"효능/목적: {entry.get('purpose', '')}\n"
-            f"주요 부작용: {entry.get('side_effects', '')}\n"
-            f"복용 시 주의사항: {entry.get('precautions', '')}"
+        # 빈 항목까지 제목만 남겨 두면 검색에 잡음이 된다. 있는 것만 적는다
+        sections = [
+            ("효능/목적", entry.get("purpose")),
+            ("복용법", entry.get("how_to_take")),
+            ("주요 부작용", entry.get("side_effects")),
+            ("복용 시 주의사항", entry.get("precautions")),
+            # 병용 주의는 '이 약이랑 같이 먹어도 되나요'라는 질문에 바로 걸린다.
+            # 챗봇이 가장 많이 받는 질문이라 반드시 색인에 들어가야 한다
+            ("함께 복용 시 주의", entry.get("interactions")),
+        ]
+
+        header = entry["name"]
+        if entry.get("ingredient"):
+            header = f"{header} ({entry['ingredient']})"
+
+        # 약효 분류는 '비슷한 약'이나 '같이 먹어도 되나'를 물을 때 근거가 된다.
+        # 심평원 ATC 매핑 목록에서 온다 (scripts/import_atc.py)
+        if entry.get("atc"):
+            classification = f"{entry.get('atc_name', '')} (ATC {entry['atc']})".strip()
+            sections.insert(1, ("약효 분류", classification))
+
+        content = "\n".join(
+            [header] + [f"{label}: {text}" for label, text in sections if text]
         )
+
         documents.append(
             Document(
                 page_content=content,
@@ -32,6 +51,8 @@ def _load_documents() -> list[Document]:
                     "item_seq": entry.get("item_seq") or "",
                     "purpose": entry.get("purpose", ""),
                     "side_effects": entry.get("side_effects", ""),
+                    "interactions": entry.get("interactions", ""),
+                    "atc": entry.get("atc", ""),
                 },
             )
         )
