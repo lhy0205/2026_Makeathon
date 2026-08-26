@@ -3,8 +3,11 @@
 //
 //  OCR이 가장 자주 틀리는 게 약 이름이다. 여기서 못 고치면
 //  틀린 이름이 그대로 저장되고, 복약 알림에도 틀린 이름이 뜬다.
-//  서버가 지식베이스에서 약을 못 찾은 경우(unmatched)를 눈에 띄게 표시해
-//  어디를 봐야 할지 알려준다.
+//
+//  지식베이스에 없는 약(unmatched)을 붉게 표시하던 것은 뺐다.
+//  처방되는 약의 상당수가 전문의약품이라 우리 지식베이스에 없을 뿐인데,
+//  이름이 맞는데도 경고가 뜨는 일이 잦아 도움이 되지 않았다.
+//  이름은 언제든 고칠 수 있으므로 편집 자체는 그대로 둔다.
 // ─────────────────────────────────────────────
 import React from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -65,21 +68,12 @@ export default function MedicationEditor({ medications, onChange, editable = tru
     onChange(medications.filter((_, i) => i !== index));
   };
 
-  const unmatchedCount = medications.filter((m) => m.unmatched).length;
-
   return (
     <View style={styles.container}>
       <View style={styles.head}>
         <Text style={styles.title}>약 정보</Text>
         <Text style={styles.count}>{medications.length}종</Text>
       </View>
-
-      {unmatchedCount > 0 && (
-        <Text style={styles.warn}>
-          {unmatchedCount}개의 약을 찾지 못했어요.
-          {'\n'}이름을 고치거나, 맞다면 확인 버튼을 눌러주세요.
-        </Text>
-      )}
 
       {medications.length === 0 && (
         <Text style={styles.empty}>인식된 약이 없습니다. 사진을 다시 올려주세요.</Text>
@@ -88,13 +82,9 @@ export default function MedicationEditor({ medications, onChange, editable = tru
       {medications.map((med, index) => (
         // key에 약 이름을 넣으면 한 글자 칠 때마다 키가 바뀌어
         // 입력칸이 새로 마운트되고 포커스가 날아간다. 자리(index)만 쓴다.
-        <View
-          key={index}
-          style={[styles.card, med.unmatched && styles.cardWarn]}
-        >
+        <View key={index} style={styles.card}>
           <View style={styles.cardHead}>
             <Text style={styles.fieldLabel}>약 이름</Text>
-            {med.unmatched && <Text style={styles.badge}>확인 필요</Text>}
             {editable && medications.length > 1 && (
               <TouchableOpacity onPress={() => remove(index)} hitSlop={8}>
                 <Text style={styles.remove}>삭제</Text>
@@ -110,19 +100,6 @@ export default function MedicationEditor({ medications, onChange, editable = tru
             placeholder="약 이름"
             placeholderTextColor={COLORS.textPlaceholder}
           />
-
-          {/* 지식베이스에 없는 약이라도 처방은 실재한다. 이름이 맞다면
-              경고를 지우고 넘어갈 수 있어야 한다 — 그러지 않으면
-              사용자가 할 수 있는 일이 없는 경고만 남는다 */}
-          {editable && med.unmatched && (
-            <TouchableOpacity
-              style={styles.confirmBtn}
-              onPress={() => patch(index, { unmatched: false })}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.confirmBtnText}>이 이름이 맞아요</Text>
-            </TouchableOpacity>
-          )}
 
           <View style={styles.numberRowWrap}>
             <NumberField
@@ -180,11 +157,6 @@ const styles = StyleSheet.create({
   },
   count: { fontSize: TYPOGRAPHY.xs, color: COLORS.textSecondary },
 
-  warn: {
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.error,
-    lineHeight: 17,
-  },
   empty: {
     fontSize: TYPOGRAPHY.sm,
     color: COLORS.textSecondary,
@@ -200,35 +172,10 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     gap: SPACING.xs,
   },
-  cardWarn: { borderColor: COLORS.error },
-
   cardHead: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-  },
-  badge: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.bold,
-    color: COLORS.error,
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  confirmBtn: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-  },
-  confirmBtnText: {
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.semibold,
-    color: COLORS.primary,
   },
   remove: {
     marginLeft: 'auto',
