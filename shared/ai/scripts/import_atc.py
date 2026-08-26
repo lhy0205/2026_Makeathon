@@ -58,16 +58,21 @@ def _product_name(raw: str) -> str:
 def _keys_for(name: str) -> list[str]:
     """이 제품을 찾을 때 쓸 만한 열쇠들.
 
+    세 가지 형태로 넣는다. 처방전에 어떤 식으로 적혀 있을지 모르기 때문이다.
+
     심평원 제품명은 성분을 괄호로 품고 있다 — `무코스타정(레바미피드)`.
     정규화하면 `무코스타정레바미피드`가 되는데, 처방전에는
-    `무코스타정100mg`이라고 적혀서 `무코스타`로 정규화된다. 그래서
-    괄호를 떼어낸 형태도 함께 넣어야 만난다.
-    """
-    keys = [normalize(name)]
+    `무코스타정100mg`이라고 적혀서 `무코스타`로 정규화된다.
+    그래서 괄호를 떼어낸 형태도 넣는다.
 
+    괄호 안의 성분명도 따로 넣는다. 성분명으로 처방되는 약이 흔하고
+    (`오플록사신`, `세프포독심프록세틸`), 제품명만 넣어 두면 그때 못 찾는다.
+    """
     bare = _PARENTHETICAL.sub("", name).strip()
-    if bare and bare != name:
-        keys.append(normalize(bare))
+    keys = [normalize(name), normalize(bare)]
+
+    for ingredient in _PARENTHETICAL.findall(name):
+        keys.append(normalize(ingredient.strip("()")))
 
     return [k for k in dict.fromkeys(keys) if k]
 
