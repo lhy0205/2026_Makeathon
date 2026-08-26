@@ -3,7 +3,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.chains.prescription_parser import parse_prescription_text
 from app.schemas.prescription import AnalyzedMedication, PrescriptionAnalysisResult
 from app.services.medication_matcher import match_medication
-from app.services.ocr_service import extract_text
+from app.services.ocr import extract_text
 
 router = APIRouter()
 

@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./chroma_db"
     tessdata_dir: str = "./tessdata"
     tesseract_cmd: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    # auto | rapidocr | tesseract
+    # auto는 rapidocr(PP-OCRv5 한국어)를 먼저 쓰고, 못 쓰면 tesseract로 물러난다
+    ocr_engine: str = "auto"
     knowledge_base_dir: str = "./app/data/knowledge_base"
     # 약 이름 매칭 결과를 남기는 곳. 관리자 화면이 실패 목록을 여기서 읽는다
     match_log_path: str = "./data/match_log.jsonl"
