@@ -18,8 +18,10 @@ shared/backend/uploads/
 
 # ── AI 서버 (Python) ─────────────────────────
 shared/ai/.venv/
-shared/ai/__pycache__/
-shared/ai/**/__pycache__/
+# 파이썬 캐시는 어디에 생기든 넣지 않는다.
+# scripts/ 아래 것이 추적되고 있어서 시드를 돌릴 때마다 변경으로 잡혔다
+__pycache__/
+*.pyc
 shared/ai/.pytest_cache/
 shared/ai/chroma_db/
 shared/ai/tessdata/
