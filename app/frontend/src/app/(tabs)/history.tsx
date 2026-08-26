@@ -47,17 +47,21 @@ export default function HistoryTab() {
 
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
-        ) : total > 0 ? (
-          <>
-            <PillHourglass total={total} taken={taken} />
-            <Text style={styles.caption}>
-              {visit?.hospitalName} · {taken}/{total}회 복용
-            </Text>
-          </>
         ) : (
-          <Text style={styles.emptyText}>
-            처방전을 등록하면 복약 진행 상황을 볼 수 있어요.
-          </Text>
+          <>
+            {/* 일정이 아직 없어도 모래시계는 그린다. 이 화면의 얼굴이라
+                통째로 사라지면 화면이 고장 난 것처럼 보인다 */}
+            <PillHourglass total={total} taken={taken} />
+            {total > 0 ? (
+              <Text style={styles.caption}>
+                {visit?.hospitalName} · {taken}/{total}회 복용
+              </Text>
+            ) : (
+              <Text style={styles.emptyText}>
+                처방전을 등록하면 복약 진행 상황을 볼 수 있어요.
+              </Text>
+            )}
+          </>
         )}
 
         <View style={styles.actions}>
