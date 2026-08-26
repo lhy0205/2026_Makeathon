@@ -43,6 +43,10 @@ const PH = 12;
 const GAP = 3;
 const STEP = PH + 3;
 
+// 그림에 그릴 알약의 최대 개수 — 7일치(하루 3회 × 2종) 기준.
+// 처방이 더 길면 비율만 유지해 이 안으로 줄여 그린다
+const MAX_PILLS = 42;
+
 /** 참고 이미지 팔레트 — 네이비 · 틸그린 · 오렌지 · 하늘 · 화이트 */
 const PALETTE = [
   { face: '#2B5FA8' },
@@ -105,11 +109,16 @@ function stack(count: number, chamber: Chamber): Slot[] {
   const slots: Slot[] = [];
   const startY = chamber === 'top' ? NECK_Y - 22 : BOTTOM_Y - 14;
 
+  // 위 칸은 유리 천장, 아래 칸은 목까지가 한계다. 줄 수를 숫자로 정해 두면
+  // 처방이 길 때 알약이 유리를 뚫고 밖으로 쌓인다 (실제로 68알에서 그랬다)
+  const ceiling = chamber === 'top' ? TOP_Y + PH : NECK_Y + PH;
+
   let placed = 0;
   let row = 0;
 
-  while (placed < count && row < 14) {
+  while (placed < count) {
     const y = startY - row * STEP;
+    if (y < ceiling) break;
     // 알약 높이만큼 좁아지는 쪽 끝에서 재야 모서리가 유리를 뚫지 않는다
     const edgeY = chamber === 'top' ? y + PH / 2 : y - PH / 2;
     // 기울임(최대 13°) 여유까지 빼둔다
@@ -220,8 +229,17 @@ export default function PillHourglass({ total, taken, width = 258, shake = true 
     ],
   }));
 
-  const done = Math.max(0, Math.min(taken, total));
-  const remaining = total - done;
+  // 그림에 넣을 알약 수는 7일치까지만. 하루 세 번 두 종이면 42알이고,
+  // 그보다 긴 처방(68알을 봤다)을 다 그리면 유리가 가득 차서
+  // 얼마나 남았는지가 오히려 안 보인다. 비율은 그대로 두므로
+  // 차오른 정도는 맞고, 정확한 횟수는 그림 아래 문구가 말한다.
+  const scale = total > MAX_PILLS ? MAX_PILLS / total : 1;
+  const shownTotal = Math.max(0, Math.round(total * scale));
+  // 한 번이라도 먹었으면 아래 칸이 비어 보이지 않게 한 알은 남긴다
+  const shownTaken = taken > 0 ? Math.max(1, Math.round(taken * scale)) : 0;
+
+  const done = Math.max(0, Math.min(shownTaken, shownTotal));
+  const remaining = shownTotal - done;
 
   // 마지막 한 알은 떨어지는 중으로 그린다
   const falling = done > 0 && remaining > 0;
