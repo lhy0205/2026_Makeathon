@@ -126,43 +126,46 @@ export default function ComparisonScreen() {
     { enabled: (candidates.data?.length ?? 0) > 0 },
   );
 
-  // 이력 전체에 한 번이라도 적힌 증상
+  // 이력 전체에 한 번이라도 적힌 증상.
+  //
+  // 여러 치료에 걸쳐 적힌 것부터 앞에 둔다. 한 치료에만 있는 증상은
+  // 견줄 상대가 없어서 목록 맨 앞에 있어 봐야 빈 표만 보여준다.
   const symptoms = useMemo(() => {
-    const found = new Set<string>();
+    const treatmentsWith = new Map<string, number>();
     for (const t of treatments.data ?? []) {
+      const inThis = new Set<string>();
       for (const log of t.logs) {
         for (const name of log.sideEffects ?? []) {
-          if (name) found.add(name);
+          if (name) inThis.add(name);
         }
       }
+      for (const name of inThis) {
+        treatmentsWith.set(name, (treatmentsWith.get(name) ?? 0) + 1);
+      }
     }
-    return [...found].sort();
+    return [...treatmentsWith.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name]) => name);
   }, [treatments.data]);
 
-  // 켜진 목록이 아니라 꺼진 목록을 들고 있는다.
-  // 그래야 증상이 뒤늦게 도착해도 저절로 켜진 상태로 나온다
-  const [hidden, setHidden] = useState<string[]>([]);
+  const [symptomOpen, setSymptomOpen] = useState(false);
+  // 고른 값을 따로 들고, 아직 안 골랐으면 첫 증상을 쓴다.
+  // 증상 목록은 기록을 받아온 뒤에야 정해지므로 초기값을 미리 넣을 수 없다
+  const [chosen, setChosen] = useState<string | null>(null);
+  const symptom = chosen && symptoms.includes(chosen) ? chosen : (symptoms[0] ?? null);
 
-  const toggleSymptom = (name: string) =>
-    setHidden((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
+  // 고른 증상을 실제로 적은 치료들. 적힌 적 없는 치료는 견줄 것이 없어 뺀다
+  const symptomRows = useMemo(() => {
+    if (!symptom) return [];
+    return (treatments.data ?? [])
+      .map((t) => ({ ...t, stat: statFor(t.logs, symptom) }))
+      .filter((r): r is typeof r & { stat: SymptomStat } => r.stat != null);
+  }, [symptom, treatments.data]);
 
-  const shownSymptoms = symptoms.filter((name) => !hidden.includes(name));
-
-  // 고른 증상마다 가장 낮은(=가장 나았던) 심각도. 그 칸을 표시해 준다
-  const bestBySymptom = useMemo(() => {
-    const best: Record<string, number> = {};
-    for (const name of shownSymptoms) {
-      for (const t of treatments.data ?? []) {
-        const stat = statFor(t.logs, name);
-        if (stat && (best[name] === undefined || stat.severity < best[name])) {
-          best[name] = stat.severity;
-        }
-      }
-    }
-    return best;
-  }, [shownSymptoms, treatments.data]);
+  // 가장 낮은 값 = 그 증상에 가장 나았던 치료
+  const bestSeverity = symptomRows.length
+    ? Math.min(...symptomRows.map((r) => r.stat.severity))
+    : null;
 
   // 자기 자신은 비교 대상이 될 수 없다
   const pastVisits = useMemo(
@@ -243,33 +246,39 @@ export default function ComparisonScreen() {
               </View>
             ) : (
               <>
-                {/* 비교 대상 고르기 */}
+                {/* 증상 고르기 — 고른 증상에 어느 병원 치료가 나았는지 아래에 나온다 */}
                 <View style={styles.picker}>
                   <TouchableOpacity
                     style={styles.pickerHead}
-                    onPress={() => setPickerOpen((v) => !v)}
+                    onPress={() => setSymptomOpen((v) => !v)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.pickerChevron}>{pickerOpen ? '⌄' : '›'}</Text>
+                    <Text style={styles.pickerChevron}>{symptomOpen ? '⌄' : '›'}</Text>
                     <Text style={styles.pickerText} numberOfLines={1}>
-                      {comparedPast ? visitLabel(comparedPast) : '비교할 지난 치료 고르기'}
+                      {symptom ?? '증상 고르기'}
                     </Text>
-                    <Text style={styles.pickerCount}>{pastVisits.length}건</Text>
+                    <Text style={styles.pickerCount}>{symptomRows.length}건</Text>
                   </TouchableOpacity>
 
-                  {pickerOpen && (
+                  {symptomOpen && (
                     <View style={styles.pickerList}>
-                      {pastVisits.map((v) => (
+                      {symptoms.map((name) => (
                         <TouchableOpacity
-                          key={v.id}
+                          key={name}
                           style={styles.pickerItem}
-                          onPress={() => handleCompare(v.id)}
+                          onPress={() => { setChosen(name); setSymptomOpen(false); }}
                           activeOpacity={0.7}
                         >
-                          <Text style={styles.pickerItemText} numberOfLines={1}>
-                            {visitLabel(v)}
+                          <Text
+                            style={[
+                              styles.pickerItemText,
+                              name === symptom && styles.pickerItemTextOn,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {name}
                           </Text>
-                          {v.id === comparison?.pastVisitId && (
+                          {name === symptom && (
                             <Text style={styles.pickerCheck}>✓</Text>
                           )}
                         </TouchableOpacity>
@@ -317,96 +326,107 @@ export default function ComparisonScreen() {
                   </View>
                 )}
 
-                {/* 증상을 골라 병원별로 견주기 */}
-                {!comparing && symptoms.length > 0 && (
+                {/* 고른 증상에 대한 병원별 비교 */}
+                {symptom && (
                   <View style={styles.symptomCard}>
-                    <Text style={styles.symptomTitle}>증상별 · 병원 비교</Text>
-                    <Text style={styles.symptomHint}>
-                      증상을 고르면 그 증상에 어느 병원 치료가 나았는지 보여줘요
+                    <Text style={styles.symptomTitle}>
+                      ‘{symptom}’에 어느 병원 치료가 나았나
                     </Text>
 
-                    <View style={styles.chipRow}>
-                      {symptoms.map((name) => {
-                        const on = !hidden.includes(name);
-                        return (
-                          <TouchableOpacity
-                            key={name}
-                            style={[styles.chip, on && styles.chipOn]}
-                            onPress={() => toggleSymptom(name)}
-                            activeOpacity={0.75}
-                          >
-                            <Text style={[styles.chipText, on && styles.chipTextOn]}>
-                              {name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    {shownSymptoms.length === 0 ? (
+                    {symptomRows.length === 0 ? (
                       <Text style={styles.emptyText}>
-                        증상을 하나 이상 골라 주세요.
+                        이 증상을 적은 치료가 아직 없어요.
                       </Text>
                     ) : (
                       <>
                         <View style={styles.symptomHead}>
-                          <Text style={styles.symptomHeadName}>치료</Text>
-                          {shownSymptoms.map((name) => (
-                            <Text key={name} style={styles.symptomHeadCell} numberOfLines={1}>
-                              {name}
-                            </Text>
-                          ))}
+                          <Text style={styles.symptomHeadName}>치료 · 처방</Text>
+                          <Text style={styles.symptomHeadCell}>심각도</Text>
+                          <Text style={styles.symptomHeadCell}>기록</Text>
                         </View>
 
-                        {(treatments.data ?? []).map(({ visit: v, logs, drugs }) => (
-                          <View
-                            key={v.id}
-                            style={[styles.symptomRow, v.id === visitId && styles.symptomRowNow]}
-                          >
-                            <View style={styles.treatmentCol}>
-                              <Text style={styles.treatmentName} numberOfLines={1}>
-                                {v.hospitalName}
-                                {v.id === visitId ? ' · 이번' : ''}
-                              </Text>
-                              <Text style={styles.treatmentMeta} numberOfLines={1}>
-                                {v.visitedAt}
-                              </Text>
-                              {drugs.length > 0 && (
-                                <Text style={styles.treatmentDrugs} numberOfLines={2}>
-                                  {drugs.join(' · ')}
+                        {symptomRows.map(({ visit: v, drugs, stat }) => {
+                          const best = stat.severity === bestSeverity;
+                          return (
+                            <View
+                              key={v.id}
+                              style={[styles.symptomRow, v.id === visitId && styles.symptomRowNow]}
+                            >
+                              <View style={styles.treatmentCol}>
+                                <Text style={styles.treatmentName} numberOfLines={1}>
+                                  {v.hospitalName}
+                                  {v.id === visitId ? ' · 이번' : ''}
                                 </Text>
-                              )}
-                            </View>
-
-                            {shownSymptoms.map((name) => {
-                              const stat = statFor(logs, name);
-                              // 가장 낮은 심각도 = 그 증상에 가장 나았던 치료
-                              const best =
-                                stat != null && bestBySymptom[name] === stat.severity;
-                              return (
-                                <View key={name} style={styles.symptomCellBox}>
-                                  <Text
-                                    style={[styles.symptomCell, best && styles.symptomCellBest]}
-                                  >
-                                    {stat ? stat.severity.toFixed(1) : '—'}
+                                <Text style={styles.treatmentMeta} numberOfLines={1}>
+                                  {v.visitedAt}
+                                  {v.visitReason ? ` · ${v.visitReason}` : ''}
+                                </Text>
+                                {drugs.length > 0 && (
+                                  <Text style={styles.treatmentDrugs} numberOfLines={2}>
+                                    {drugs.join(' · ')}
                                   </Text>
-                                  {stat && (
-                                    <Text style={styles.symptomCellDays}>{stat.days}일</Text>
-                                  )}
-                                </View>
-                              );
-                            })}
-                          </View>
-                        ))}
+                                )}
+                              </View>
+
+                              <View style={styles.symptomCellBox}>
+                                <Text style={[styles.symptomCell, best && styles.symptomCellBest]}>
+                                  {stat.severity.toFixed(1)}
+                                </Text>
+                                {best && <Text style={styles.bestTag}>가장 나음</Text>}
+                              </View>
+
+                              <View style={styles.symptomCellBox}>
+                                <Text style={styles.symptomCell}>{stat.days}일</Text>
+                              </View>
+                            </View>
+                          );
+                        })}
 
                         <Text style={styles.symptomFoot}>
-                          숫자는 그 증상을 적은 날의 평균 심각도입니다. 낮을수록 좋고,
-                          가장 낮은 값에 표시했습니다.
+                          심각도는 그 증상을 적은 날의 평균입니다. 낮을수록 좋습니다.
+                          하루에 하나만 기록되므로 그날의 전반적인 몸 상태에 가깝습니다.
                         </Text>
                       </>
                     )}
                   </View>
                 )}
+
+                {/* AI가 두 치료를 견준 결과 — 위 표와 별개로 문장으로 읽는다 */}
+                <View style={styles.picker}>
+                  <TouchableOpacity
+                    style={styles.pickerHead}
+                    onPress={() => setPickerOpen((v) => !v)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.pickerChevron}>{pickerOpen ? '⌄' : '›'}</Text>
+                    <Text style={styles.pickerText} numberOfLines={1}>
+                      {comparedPast
+                        ? `AI 비교 · ${visitLabel(comparedPast)}`
+                        : 'AI에게 지난 치료와 견주게 하기'}
+                    </Text>
+                    <Text style={styles.pickerCount}>{pastVisits.length}건</Text>
+                  </TouchableOpacity>
+
+                  {pickerOpen && (
+                    <View style={styles.pickerList}>
+                      {pastVisits.map((v) => (
+                        <TouchableOpacity
+                          key={v.id}
+                          style={styles.pickerItem}
+                          onPress={() => handleCompare(v.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.pickerItemText} numberOfLines={1}>
+                            {visitLabel(v)}
+                          </Text>
+                          {v.id === comparison?.pastVisitId && (
+                            <Text style={styles.pickerCheck}>✓</Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
 
                 {!comparison && !comparing && (
                   <Text style={styles.hint}>
@@ -519,6 +539,12 @@ const styles = StyleSheet.create({
   },
   symptomCellBest: { color: COLORS.success, fontWeight: TYPOGRAPHY.bold },
   symptomCellDays: { fontSize: 9, color: COLORS.textPlaceholder },
+  bestTag: {
+    fontSize: 9,
+    color: COLORS.success,
+    fontWeight: TYPOGRAPHY.semibold,
+    marginTop: 1,
+  },
   symptomFoot: {
     fontSize: 10,
     color: COLORS.textSecondary,
@@ -601,6 +627,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   pickerItemText: { flex: 1, fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary },
+  pickerItemTextOn: { color: COLORS.primary, fontWeight: TYPOGRAPHY.semibold },
   pickerCheck: { fontSize: TYPOGRAPHY.sm, color: COLORS.primary, fontWeight: TYPOGRAPHY.bold },
 
   working: {
