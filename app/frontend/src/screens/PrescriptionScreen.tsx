@@ -28,6 +28,15 @@ type Props = {
 
 type ScanState = 'idle' | 'scanning' | 'done';
 
+// 촬영과 갤러리가 같은 조건이어야 인식 품질이 들쭉날쭉하지 않다.
+// 처방전은 종이라 사진에 여백이 많이 들어간다. 자르기를 열어 두면
+// 글자 부분만 남겨 보낼 수 있어 인식률이 오른다
+const PICK_OPTIONS: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ['images'],
+  allowsEditing: true,
+  quality: 0.8,
+};
+
 /** 서버는 방문 기록이 있어야 처방전을 스캔해준다. 병원명은 인식 후 실제 값으로 덮어쓴다 */
 const PLACEHOLDER_HOSPITAL = '처방전 분석 중';
 
@@ -70,23 +79,8 @@ export default function PrescriptionScreen({ navigation }: Props) {
     return visit.id;
   };
 
-  // 갤러리에서 사진 선택 → 서버 OCR 분석
-  const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.\n설정에서 허용해주세요.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (result.canceled) return;
-
-    const uri = result.assets[0].uri;
+  // 사진 한 장을 서버로 보내 OCR 분석. 촬영·갤러리 어느 쪽이든 여기로 모인다
+  const analyzeImage = async (uri: string) => {
     setImageUri(uri);
     setScanState('scanning');
     setOcrResult(null);
@@ -111,6 +105,40 @@ export default function PrescriptionScreen({ navigation }: Props) {
       const message = e instanceof Error ? e.message : '처방전을 인식하지 못했습니다.';
       Alert.alert('인식 실패', `${message}\n다시 시도해주세요.`);
     }
+  };
+
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('권한 필요', '카메라 권한이 필요합니다.\n설정에서 허용해주세요.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync(PICK_OPTIONS);
+    if (result.canceled) return;
+    await analyzeImage(result.assets[0].uri);
+  };
+
+  const handlePickFromLibrary = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.\n설정에서 허용해주세요.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync(PICK_OPTIONS);
+    if (result.canceled) return;
+    await analyzeImage(result.assets[0].uri);
+  };
+
+  // 화면을 새로 만들지 않고 물어본다 — 처방전은 대개 그 자리에서 찍지만
+  // 이미 찍어 둔 사진을 쓰는 경우도 있다
+  const handlePickImage = () => {
+    Alert.alert('처방전 사진', '어떻게 가져올까요?', [
+      { text: '카메라로 촬영', onPress: handleTakePhoto },
+      { text: '갤러리에서 선택', onPress: handlePickFromLibrary },
+      { text: '취소', style: 'cancel' },
+    ]);
   };
 
   const handleRetake = () => {
@@ -198,15 +226,15 @@ export default function PrescriptionScreen({ navigation }: Props) {
               <View style={[styles.corner, styles.cornerBL]} />
               <View style={[styles.corner, styles.cornerBR]} />
               <Text style={styles.uploadIcon}>+</Text>
-              <Text style={styles.uploadHint}>탭하여 갤러리에서 사진 선택</Text>
+              <Text style={styles.uploadHint}>탭하여 촬영하거나 사진 선택</Text>
             </>
           )}
         </TouchableOpacity>
 
-        {/* 갤러리 재선택 버튼 (이미지 선택 후) */}
+        {/* 다시 가져오기 (이미지 선택 후) */}
         {imageUri && scanState !== 'scanning' && (
           <TouchableOpacity style={styles.rePickBtn} onPress={handlePickImage}>
-            <Text style={styles.rePickBtnText}>다른 사진 선택</Text>
+            <Text style={styles.rePickBtnText}>다시 촬영 / 사진 선택</Text>
           </TouchableOpacity>
         )}
 

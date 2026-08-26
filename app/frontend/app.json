@@ -45,6 +45,13 @@
           "icon": "./assets/images/icon.png",
           "color": "#2A6FBF"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "처방전을 촬영해 약 정보를 읽어오기 위해 카메라를 사용합니다.",
+          "photosPermission": "저장된 처방전 사진을 불러오기 위해 사진 접근이 필요합니다."
+        }
       ]
     ],
     "experiments": {
