@@ -55,21 +55,24 @@ export default function SideEffectScreen() {
   const [sideEffects, setSideEffects] = useState<SideEffectItem[]>(freshSideEffects);
   const [saving, setSaving] = useState(false);
 
+  // 증상 보기는 진료과를 따른다 (안과 치료에는 눈 증상이 나온다)
+  const department = visit?.departmentName ?? null;
+
   // 오늘 이미 남긴 기록이 있으면 이어서 고칠 수 있게 채워 둔다
   useEffect(() => {
     if (logLoading) return;
 
     if (!log) {
       setConditionScore(DEFAULT_CONDITION);
-      setSideEffects(freshSideEffects());
+      setSideEffects(freshSideEffects(department));
       return;
     }
 
     setConditionScore(
       log.symptomSeverity != null ? severityToCondition(log.symptomSeverity) : DEFAULT_CONDITION,
     );
-    setSideEffects(fromSideEffectLabels(log.sideEffects, 50));
-  }, [log, logLoading]);
+    setSideEffects(fromSideEffectLabels(log.sideEffects, 50, department));
+  }, [log, logLoading, department]);
 
   const toggleEffect = (id: string) => {
     setSideEffects((prev) =>

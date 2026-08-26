@@ -200,6 +200,10 @@ export default function StatusCheckScreen() {
   const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // 증상 보기는 진료과를 따른다 — 안과 치료에 '속쓰림'만 내놓으면
+  // 정작 겪는 눈 시림을 적을 곳이 없다
+  const department = visits.find((v) => v.id === selectedVisitId)?.departmentName ?? null;
+
   // 날짜나 치료를 바꾸면 그 날 저장해 둔 값으로 채운다
   useEffect(() => {
     if (logLoading) return;
@@ -208,7 +212,7 @@ export default function StatusCheckScreen() {
       setWaterMl(0);
       setSleepHours(0);
       setTempC(DEFAULT_TEMP);
-      setEffects(freshSideEffects());
+      setEffects(freshSideEffects(department));
       setMemo('');
       return;
     }
@@ -221,8 +225,9 @@ export default function StatusCheckScreen() {
     setEffects(fromSideEffectLabels(
       log.sideEffects,
       log.symptomSeverity != null ? severityToScore(log.symptomSeverity) : 50,
+      department,
     ));
-  }, [log, logLoading]);
+  }, [log, logLoading, department]);
 
   const toggleEffect = (id: string) =>
     setEffects((prev) => prev.map((item) =>
