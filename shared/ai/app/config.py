@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     # auto는 rapidocr(PP-OCRv5 한국어)를 먼저 쓰고, 못 쓰면 tesseract로 물러난다
     ocr_engine: str = "auto"
     knowledge_base_dir: str = "./app/data/knowledge_base"
+    # 색인할 약의 최대 개수. 0이면 전부 넣는다.
+    # 지식베이스가 4,700건이 넘어가면서 전체 색인에 시간이 오래 걸린다.
+    # 시연 장비에서는 수백 건으로 줄여 두고, 서버에서는 0으로 둔다.
+    knowledge_index_limit: int = 0
     # 약 이름 매칭 결과를 남기는 곳. 관리자 화면이 실패 목록을 여기서 읽는다
     match_log_path: str = "./data/match_log.jsonl"
 

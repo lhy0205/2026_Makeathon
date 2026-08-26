@@ -204,6 +204,19 @@ def _fuzzy_lookup(name: str) -> tuple[dict | None, float]:
     return entry, score
 
 
+def resolve_name(name: str) -> str | None:
+    """약 이름을 지식베이스의 정식 명칭으로 바꾼다. 못 찾으면 None.
+
+    챗봇이 근거 문서를 고를 때 쓴다. 벡터 검색으로 문서를 찾으면 안 되는데,
+    임베딩이 약 이름을 구별하지 못하기 때문이다 — '페니라민정'으로 검색하면
+    '박테로신연고(무피로신)'가 1순위로 나온다. 이름은 문자열로 맞춰야 한다.
+    """
+    entry, score = _fuzzy_lookup(name)
+    if entry is not None and score >= FUZZY_THRESHOLD / 100.0:
+        return entry.get("name")
+    return None
+
+
 def _vector_lookup(name: str) -> tuple[dict | None, float]:
     """뜻이 비슷한 약을 찾는다. 벡터 스토어가 없으면 조용히 넘어간다."""
     try:
