@@ -26,6 +26,25 @@ SYSTEM_PROMPT = """당신은 환자의 복약 관리를 돕는 의료 정보 안
 {medications}
 """
 
+CASUAL_PROMPT = """당신은 환자의 복약 관리를 돕는 앱 안에 있는 대화 상대입니다.
+지금 온 말은 약과 무관한 일상 대화입니다. 편하게 응대하세요.
+- 짧고 자연스럽게, 한국어로 답하세요.
+- 약 이야기를 억지로 꺼내지 마세요. 묻지 않은 복약 안내를 덧붙이지 않습니다.
+- 다만 몸 상태나 증상 이야기가 나오면 귀담아듣고, 필요해 보이면
+  의료진 상담을 권하세요. 진단은 하지 마세요.
+"""
+
+# 약 이야기인지 가르는 말들. 하나라도 걸리면 지식베이스를 찾아본다.
+# 애매하면 찾아보는 쪽으로 기운다 — 약 질문을 잡담으로 넘겨 근거 없이
+# 답하는 쪽이, 잡담에 약 문서를 붙이는 쪽보다 나쁘다
+_MEDICAL_WORDS = (
+    "약", "복용", "먹어", "먹으", "드시", "투약", "처방", "진료", "병원", "의사", "약사",
+    "부작용", "증상", "통증", "아파", "아프", "열이", "발열", "두통", "어지", "속쓰",
+    "졸음", "졸려", "알레르기", "발진", "가려", "구역", "메스",
+    "술", "음주", "커피", "카페인", "임신", "수유", "공복", "식후", "식전", "취침",
+    "병용", "같이", "함께", "몇 번", "몇번", "언제",
+)
+
 
 class ChatState(TypedDict):
     question: str
@@ -104,6 +123,39 @@ def retrieve_node(state: ChatState) -> ChatState:
     return {**state, "retrieved_docs": docs[:_MAX_DOCS]}
 
 
+def needs_knowledge(state: ChatState) -> str:
+    """약 이야기인지 일상 대화인지 가른다.
+
+    모든 질문에 약 문서를 붙이고 의료 안내 말투를 씌우면 '안녕하세요'에도
+    복약 지도를 하게 된다. 반대로 약 질문을 잡담으로 넘기면 근거 없이
+    답하게 되므로, 애매하면 약 쪽으로 보낸다.
+
+    LLM에게 물어 가르는 방법도 있지만 그러면 왕복이 한 번 더 늘어난다.
+    환자가 먹는 약 이름과 몇 개의 말만 보면 대개 갈린다.
+    """
+    question = state["question"]
+
+    for medication in state["medications"]:
+        name = (medication.get("name") or "").strip()
+        if name and name in question:
+            return "knowledge"
+
+    if any(word in question for word in _MEDICAL_WORDS):
+        return "knowledge"
+
+    logger.info("일상 대화로 봅니다: %s", question[:40])
+    return "casual"
+
+
+def casual_node(state: ChatState) -> ChatState:
+    """약과 무관한 말에 대답한다. 근거 문서는 붙이지 않는다."""
+    prompt = ChatPromptTemplate.from_messages(
+        [("system", CASUAL_PROMPT), ("human", "{question}")]
+    )
+    response = (prompt | get_llm()).invoke({"question": state["question"]})
+    return {**state, "answer": response.content, "retrieved_docs": [], "sources": []}
+
+
 def generate_node(state: ChatState) -> ChatState:
     context = "\n\n".join(f"- {doc.page_content}" for doc in state["retrieved_docs"]) or "관련 자료를 찾지 못했습니다."
     medications = "\n".join(
@@ -142,10 +194,18 @@ def build_chat_graph():
     graph.add_node("retrieve", retrieve_node)
     graph.add_node("generate", generate_node)
     graph.add_node("citation", citation_node)
-    graph.set_entry_point("retrieve")
+    graph.add_node("casual", casual_node)
+
+    # 약 이야기면 지식베이스를 거쳐 근거와 함께 답하고,
+    # 일상 대화면 곧장 답한다
+    graph.set_conditional_entry_point(
+        needs_knowledge,
+        {"knowledge": "retrieve", "casual": "casual"},
+    )
     graph.add_edge("retrieve", "generate")
     graph.add_edge("generate", "citation")
     graph.add_edge("citation", END)
+    graph.add_edge("casual", END)
     return graph.compile()
 
 

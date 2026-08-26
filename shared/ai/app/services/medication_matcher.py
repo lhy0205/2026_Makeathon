@@ -53,12 +53,19 @@ MATCH_THRESHOLD = 0.85
 # 제형 표기는 같은 약을 다르게 보이게 만든다. 비교 전에 떼어낸다
 _FORM_SUFFIXES = ("정", "캡슐", "시럽", "산", "액", "주", "연고", "크림", "패치")
 _NOISE = re.compile(r"[\s\(\)\[\]{}<>·:,./\\-]+")
+# 대괄호부터 줄 끝까지는 약 이름이 아니라 효능군·복약안내다
+_DESCRIPTION_TAIL = re.compile(r"\s*\[.*$", re.DOTALL)
 _TRAILING_DOSE = re.compile(r"\d+(\.\d+)?\s*(mg|밀리그램|g|ml|mcg|정|캡슐)?$", re.IGNORECASE)
 
 
 def normalize(name: str) -> str:
     """비교용으로만 쓰는 이름. 표시에는 쓰지 않는다."""
-    text = _NOISE.sub("", name).lower()
+    # 처방전은 약 이름 뒤에 효능군과 복약안내를 함께 찍는다 —
+    # '싱귤리엔정10밀리그램 [알레르기 치료제]기도 부종과 …'.
+    # 대괄호부터는 설명이라 이름에서 떼어낸다. 남겨 두면 문장째로
+    # 비교하게 되어 어떤 약과도 닮지 않는다
+    text = _DESCRIPTION_TAIL.sub("", name)
+    text = _NOISE.sub("", text).lower()
     text = _TRAILING_DOSE.sub("", text)
     for suffix in _FORM_SUFFIXES:
         if text.endswith(suffix) and len(text) > len(suffix) + 1:

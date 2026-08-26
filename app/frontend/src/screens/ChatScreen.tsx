@@ -11,10 +11,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { chatApi } from '../api/Client';
+import { chatApi, prescriptionApi } from '../api/Client';
 import ChatBubble from '../components/ChatBubble';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { useActiveVisit } from '../hooks/useActiveVisit';
+import { useAsync } from '../hooks/useAsync';
 import type { ChatMessage } from '../types';
 import type { ChatMessageResponse } from '../types/Api';
 import { toClockLabel } from '../utils/datetime';
@@ -52,6 +53,25 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
+
+  // 이 치료로 등록된 약. 처방전이 아직 없으면 조회가 404를 내는데
+  // 대화 자체는 되어야 하므로 빈 목록으로 넘어간다
+  const { data: prescription } = useAsync(
+    async () => {
+      if (visitId == null) return null;
+      try {
+        return await prescriptionApi.getByVisit(visitId);
+      } catch {
+        return null;
+      }
+    },
+    [visitId],
+    { enabled: visitId != null },
+  );
+
+  const registered = (prescription?.medications ?? [])
+    .map((m) => m.medicationName)
+    .filter(Boolean);
 
   // 방문이 정해지면 지난 대화를 불러온다
   const loadHistory = useCallback(async (id: number) => {
@@ -141,6 +161,18 @@ export default function ChatScreen() {
             {visit.hospitalName}
             {visit.visitReason ? ` · ${visit.visitReason}` : ''}
           </Text>
+
+          {/* 처방전에서 등록된 약. 챗봇이 이 약들을 알고 답하므로
+              무엇을 아는지 눈에 보여야 무엇을 물을지도 정해진다 */}
+          {registered.length > 0 && (
+            <View style={styles.medRow}>
+              {registered.map((name) => (
+                <View key={name} style={styles.medChip}>
+                  <Text style={styles.medChipText} numberOfLines={1}>{name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {loadingHistory ? (
@@ -233,6 +265,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  medRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginTop: SPACING.xs,
+  },
+  medChip: {
+    maxWidth: '100%',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: RADIUS.round,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 1,
+  },
+  medChipText: {
+    fontSize: 10,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.semibold,
   },
   contextText: {
     fontSize: TYPOGRAPHY.xs,

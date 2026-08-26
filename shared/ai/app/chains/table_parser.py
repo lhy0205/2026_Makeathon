@@ -44,6 +44,15 @@ _HEADER_WORDS = ("명칭", "투약량", "투여횟수", "투약일수", "처방�
 # 날짜('2026-08-26 1 3 5')나 코드 줄이 걸리는 걸 막는다
 _HANGUL = re.compile(r"[가-힣]")
 
+# 실제 처방전은 약 이름 뒤에 효능군과 복약안내를 함께 찍는다.
+#
+#     싱귤리엔정10밀리그램 [알레르기 치료제]기도 부종과 ... 천식을 ...
+#
+# 대괄호부터는 약 이름이 아니라 설명이다. 그대로 두면 이름이 문장째로
+# 잡혀서 지식베이스와 대조할 수 없다. 괄호 안 성분명은 이름의 일부이므로
+# 소괄호는 건드리지 않는다
+_DESCRIPTION_TAIL = re.compile(r"\s*\[.*$")
+
 # 이 아래면 약 이름이라기엔 너무 짧다
 _MIN_NAME_LENGTH = 2
 
@@ -86,7 +95,7 @@ def _medication_from(line: str) -> ParsedMedication | None:
     if not match:
         return None
 
-    name = match.group("name").strip(" ·|:：")
+    name = _DESCRIPTION_TAIL.sub("", match.group("name")).strip(" ·|:：")
     if len(name) < _MIN_NAME_LENGTH or not _HANGUL.search(name):
         return None
     if any(word in name for word in _HEADER_WORDS):
