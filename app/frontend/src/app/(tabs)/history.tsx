@@ -154,7 +154,9 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.sm,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    paddingVertical: SPACING.xxxl,
+    // 예전에는 이 문구가 모래시계를 대신했기에 그 자리를 채울 여백이 필요했다.
+    // 지금은 모래시계 아래에 놓이므로 그 여백이 그대로 빈칸으로 남는다.
+    // 간격은 body의 gap이 맡는다
   },
 
   actions: {
