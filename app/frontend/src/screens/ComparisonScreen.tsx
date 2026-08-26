@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ApiError, comparisonApi, healthLogApi, visitApi } from '../api/Client';
+import { ApiError, comparisonApi, healthLogApi, prescriptionApi, visitApi } from '../api/Client';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { useActiveVisit } from '../hooks/useActiveVisit';
 import { useAsync } from '../hooks/useAsync';
@@ -52,19 +52,7 @@ function statFor(logs: HealthLogResponse[], symptom: string): SymptomStat | null
 }
 
 // symptomSeverity는 작을수록 호전이다 (서버가 감소를 회복으로 읽는다).
-// 이만큼도 차이가 안 나면 비슷하다고 본다
-const SAME_MARGIN = 0.5;
-
-function verdictOf(now: SymptomStat | null, past: SymptomStat | null) {
-  if (!now) return { text: '이번엔 기록 없음', tint: COLORS.textSecondary };
-  if (!past) return { text: '지난 치료엔 기록 없음', tint: COLORS.textSecondary };
-
-  const gap = past.severity - now.severity;
-  if (Math.abs(gap) < SAME_MARGIN) return { text: '비슷', tint: COLORS.textSecondary };
-  return gap > 0
-    ? { text: `${gap.toFixed(1)} 호전`, tint: COLORS.success }
-    : { text: `${Math.abs(gap).toFixed(1)} 악화`, tint: COLORS.error };
-}
+// 그래서 치료끼리 견줄 때도 값이 낮은 쪽이 나았던 치료다.
 
 /** 공통점 / 차이점 목록 */
 function Findings({
@@ -109,32 +97,47 @@ export default function ComparisonScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [comparing, setComparing] = useState(false);
 
-  // 서버 비교 결과는 자유 문장이라 '어떤 증상이 어떻게 달라졌는지'를
-  // 골라 볼 수 없다. 두 치료의 상태 기록을 직접 받아 증상별로 나눈다
-  const pastVisitId = comparison?.pastVisitId ?? null;
-
-  const currentLogs = useAsync(
-    async () => (visitId == null ? [] : healthLogApi.getByVisit(visitId)),
-    [visitId],
-    { enabled: visitId != null },
+  // 같은 진료과의 치료 전부를 상태 기록·처방 약과 함께 받는다.
+  //
+  // 서버 비교(닮은 점/달라진 점)는 두 치료를 자유 문장으로 견주는 것이라
+  // '이 증상엔 어느 병원 약이 나았나'를 답하지 못한다. 그 물음에 답하려면
+  // 두 건이 아니라 이력 전체를 한자리에 놓아야 한다.
+  const treatments = useAsync(
+    async () => {
+      const visits = candidates.data ?? [];
+      return Promise.all(
+        visits.map(async (v) => {
+          const [logs, prescription] = await Promise.all([
+            healthLogApi.getByVisit(v.id).catch(() => [] as HealthLogResponse[]),
+            // 처방전이 없는 방문도 있다. 기록만으로도 견줄 수 있으므로 넘어간다
+            prescriptionApi.getByVisit(v.id).catch(() => null),
+          ]);
+          return {
+            visit: v,
+            logs,
+            drugs: (prescription?.medications ?? [])
+              .map((m) => m.medicationName)
+              .filter(Boolean),
+          };
+        }),
+      );
+    },
+    [candidates.data],
+    { enabled: (candidates.data?.length ?? 0) > 0 },
   );
 
-  const pastLogs = useAsync(
-    async () => (pastVisitId == null ? [] : healthLogApi.getByVisit(pastVisitId)),
-    [pastVisitId],
-    { enabled: pastVisitId != null },
-  );
-
-  // 두 치료에 한 번이라도 적힌 증상 전부
+  // 이력 전체에 한 번이라도 적힌 증상
   const symptoms = useMemo(() => {
     const found = new Set<string>();
-    for (const log of [...(currentLogs.data ?? []), ...(pastLogs.data ?? [])]) {
-      for (const name of log.sideEffects ?? []) {
-        if (name) found.add(name);
+    for (const t of treatments.data ?? []) {
+      for (const log of t.logs) {
+        for (const name of log.sideEffects ?? []) {
+          if (name) found.add(name);
+        }
       }
     }
     return [...found].sort();
-  }, [currentLogs.data, pastLogs.data]);
+  }, [treatments.data]);
 
   // 켜진 목록이 아니라 꺼진 목록을 들고 있는다.
   // 그래야 증상이 뒤늦게 도착해도 저절로 켜진 상태로 나온다
@@ -146,6 +149,20 @@ export default function ComparisonScreen() {
     );
 
   const shownSymptoms = symptoms.filter((name) => !hidden.includes(name));
+
+  // 고른 증상마다 가장 낮은(=가장 나았던) 심각도. 그 칸을 표시해 준다
+  const bestBySymptom = useMemo(() => {
+    const best: Record<string, number> = {};
+    for (const name of shownSymptoms) {
+      for (const t of treatments.data ?? []) {
+        const stat = statFor(t.logs, name);
+        if (stat && (best[name] === undefined || stat.severity < best[name])) {
+          best[name] = stat.severity;
+        }
+      }
+    }
+    return best;
+  }, [shownSymptoms, treatments.data]);
 
   // 자기 자신은 비교 대상이 될 수 없다
   const pastVisits = useMemo(
@@ -300,12 +317,12 @@ export default function ComparisonScreen() {
                   </View>
                 )}
 
-                {/* 증상별로 골라 보기 */}
-                {comparison && !comparing && symptoms.length > 0 && (
+                {/* 증상을 골라 병원별로 견주기 */}
+                {!comparing && symptoms.length > 0 && (
                   <View style={styles.symptomCard}>
-                    <Text style={styles.symptomTitle}>증상별 비교</Text>
+                    <Text style={styles.symptomTitle}>증상별 · 병원 비교</Text>
                     <Text style={styles.symptomHint}>
-                      보고 싶은 증상만 남겨 보세요
+                      증상을 고르면 그 증상에 어느 병원 치료가 나았는지 보여줘요
                     </Text>
 
                     <View style={styles.chipRow}>
@@ -333,37 +350,58 @@ export default function ComparisonScreen() {
                     ) : (
                       <>
                         <View style={styles.symptomHead}>
-                          <Text style={styles.symptomHeadName}>증상</Text>
-                          <Text style={styles.symptomHeadCell}>지난</Text>
-                          <Text style={styles.symptomHeadCell}>이번</Text>
-                          <Text style={styles.symptomHeadVerdict}>변화</Text>
+                          <Text style={styles.symptomHeadName}>치료</Text>
+                          {shownSymptoms.map((name) => (
+                            <Text key={name} style={styles.symptomHeadCell} numberOfLines={1}>
+                              {name}
+                            </Text>
+                          ))}
                         </View>
 
-                        {shownSymptoms.map((name) => {
-                          const now = statFor(currentLogs.data ?? [], name);
-                          const past = statFor(pastLogs.data ?? [], name);
-                          const verdict = verdictOf(now, past);
-
-                          return (
-                            <View key={name} style={styles.symptomRow}>
-                              <Text style={styles.symptomName} numberOfLines={1}>
-                                {name}
+                        {(treatments.data ?? []).map(({ visit: v, logs, drugs }) => (
+                          <View
+                            key={v.id}
+                            style={[styles.symptomRow, v.id === visitId && styles.symptomRowNow]}
+                          >
+                            <View style={styles.treatmentCol}>
+                              <Text style={styles.treatmentName} numberOfLines={1}>
+                                {v.hospitalName}
+                                {v.id === visitId ? ' · 이번' : ''}
                               </Text>
-                              <Text style={styles.symptomCell}>
-                                {past ? `${past.severity.toFixed(1)}\n${past.days}일` : '—'}
+                              <Text style={styles.treatmentMeta} numberOfLines={1}>
+                                {v.visitedAt}
                               </Text>
-                              <Text style={styles.symptomCell}>
-                                {now ? `${now.severity.toFixed(1)}\n${now.days}일` : '—'}
-                              </Text>
-                              <Text style={[styles.symptomVerdict, { color: verdict.tint }]}>
-                                {verdict.text}
-                              </Text>
+                              {drugs.length > 0 && (
+                                <Text style={styles.treatmentDrugs} numberOfLines={2}>
+                                  {drugs.join(' · ')}
+                                </Text>
+                              )}
                             </View>
-                          );
-                        })}
+
+                            {shownSymptoms.map((name) => {
+                              const stat = statFor(logs, name);
+                              // 가장 낮은 심각도 = 그 증상에 가장 나았던 치료
+                              const best =
+                                stat != null && bestBySymptom[name] === stat.severity;
+                              return (
+                                <View key={name} style={styles.symptomCellBox}>
+                                  <Text
+                                    style={[styles.symptomCell, best && styles.symptomCellBest]}
+                                  >
+                                    {stat ? stat.severity.toFixed(1) : '—'}
+                                  </Text>
+                                  {stat && (
+                                    <Text style={styles.symptomCellDays}>{stat.days}일</Text>
+                                  )}
+                                </View>
+                              );
+                            })}
+                          </View>
+                        ))}
 
                         <Text style={styles.symptomFoot}>
-                          숫자는 그 증상을 적은 날의 평균 심각도입니다. 낮을수록 좋습니다.
+                          숫자는 그 증상을 적은 날의 평균 심각도입니다. 낮을수록 좋고,
+                          가장 낮은 값에 표시했습니다.
                         </Text>
                       </>
                     )}
@@ -455,31 +493,32 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xs,
   },
   symptomHeadName: { flex: 1, fontSize: 10, color: COLORS.textSecondary },
-  symptomHeadCell: { width: 48, fontSize: 10, color: COLORS.textSecondary, textAlign: 'center' },
-  symptomHeadVerdict: { width: 62, fontSize: 10, color: COLORS.textSecondary, textAlign: 'right' },
+  symptomHeadCell: { width: 52, fontSize: 10, color: COLORS.textSecondary, textAlign: 'center' },
   symptomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.xs + 2,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  symptomName: {
-    flex: 1,
+  // 이번 치료는 견주는 기준이라 눈에 띄어야 한다
+  symptomRowNow: { backgroundColor: COLORS.calSelected },
+  treatmentCol: { flex: 1, paddingRight: SPACING.sm },
+  treatmentName: {
     fontSize: TYPOGRAPHY.sm,
     color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.semibold,
+  },
+  treatmentMeta: { fontSize: 10, color: COLORS.textSecondary },
+  treatmentDrugs: { fontSize: 10, color: COLORS.textPlaceholder, marginTop: 1 },
+  symptomCellBox: { width: 52, alignItems: 'center' },
+  symptomCell: {
+    fontSize: TYPOGRAPHY.sm,
+    color: COLORS.textSecondary,
     fontWeight: TYPOGRAPHY.medium,
   },
-  symptomCell: {
-    width: 48,
-    fontSize: TYPOGRAPHY.xs,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  symptomVerdict: {
-    width: 62,
-    fontSize: TYPOGRAPHY.xs,
-    fontWeight: TYPOGRAPHY.bold,
-    textAlign: 'right',
-  },
+  symptomCellBest: { color: COLORS.success, fontWeight: TYPOGRAPHY.bold },
+  symptomCellDays: { fontSize: 9, color: COLORS.textPlaceholder },
   symptomFoot: {
     fontSize: 10,
     color: COLORS.textSecondary,
