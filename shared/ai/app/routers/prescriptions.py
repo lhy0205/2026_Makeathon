@@ -5,6 +5,7 @@ from app.schemas.prescription import AnalyzedMedication, PrescriptionAnalysisRes
 from app.services.knowledge_indexer import ensure_indexed
 from app.services.medication_matcher import match_medication, resolve_name
 from app.services.ocr import extract_text
+from app.services import scan_cache
 
 router = APIRouter()
 
@@ -19,6 +20,12 @@ async def analyze_prescription(image: UploadFile = File(...)) -> PrescriptionAna
     if not image_bytes:
         raise HTTPException(status_code=400, detail="이미지가 비어 있습니다.")
 
+    # 같은 사진이 다시 들어오면 앞서 읽은 결과를 그대로 쓴다.
+    # 화면을 되돌아오거나 저장 전에 다시 확인할 때 흔히 생기는 일이다
+    cached = scan_cache.get(image_bytes)
+    if cached is not None:
+        return cached
+
     raw_text = extract_text(image_bytes)
     if not raw_text:
         raise HTTPException(status_code=422, detail="이미지에서 텍스트를 인식하지 못했습니다.")
@@ -32,9 +39,12 @@ async def analyze_prescription(image: UploadFile = File(...)) -> PrescriptionAna
     titles = [resolve_name(m.medication_name) for m in parsed.medications]
     ensure_indexed(title for title in titles if title)
 
-    return PrescriptionAnalysisResult(
+    result = PrescriptionAnalysisResult(
         raw_ocr_text=raw_text,
         hospital_name=parsed.hospital_name,
         department_name=parsed.department_name,
         medications=medications,
     )
+
+    scan_cache.put(image_bytes, result)
+    return result

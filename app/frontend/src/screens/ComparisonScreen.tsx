@@ -10,11 +10,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ApiError, comparisonApi, visitApi } from '../api/Client';
+import { ApiError, comparisonApi, healthLogApi, visitApi } from '../api/Client';
 import { COLORS, RADIUS, SHADOW, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { useActiveVisit } from '../hooks/useActiveVisit';
 import { useAsync } from '../hooks/useAsync';
-import type { ComparisonResponse, VisitResponse } from '../types/Api';
+import type { ComparisonResponse, HealthLogResponse, VisitResponse } from '../types/Api';
 
 /** 아직 비교한 적 없는 건 오류가 아니다 */
 async function loadLatest(visitId: number): Promise<ComparisonResponse | null> {
@@ -28,6 +28,43 @@ async function loadLatest(visitId: number): Promise<ComparisonResponse | null> {
 
 const visitLabel = (v: VisitResponse) =>
   `${v.hospitalName} · ${v.visitedAt}`;
+
+/** 한 증상이 어느 치료에서 얼마나 심했는지 */
+interface SymptomStat {
+  days: number;
+  severity: number;
+}
+
+/**
+ * 그 증상이 적힌 날들만 모아 평균을 낸다.
+ * symptomSeverity는 기록 하나에 하나뿐이라 그날 적은 증상 전부가 같은 값을 쓴다.
+ * 증상별로 따로 매긴 점수는 아니지만, 그 증상을 겪은 날의 몸 상태이므로
+ * '이 증상이 있던 날은 대체로 어땠나'를 보여주는 값으로는 쓸 수 있다.
+ */
+function statFor(logs: HealthLogResponse[], symptom: string): SymptomStat | null {
+  const days = logs.filter(
+    (log) => log.symptomSeverity != null && log.sideEffects?.includes(symptom),
+  );
+  if (days.length === 0) return null;
+
+  const total = days.reduce((sum, log) => sum + (log.symptomSeverity ?? 0), 0);
+  return { days: days.length, severity: total / days.length };
+}
+
+// symptomSeverity는 작을수록 호전이다 (서버가 감소를 회복으로 읽는다).
+// 이만큼도 차이가 안 나면 비슷하다고 본다
+const SAME_MARGIN = 0.5;
+
+function verdictOf(now: SymptomStat | null, past: SymptomStat | null) {
+  if (!now) return { text: '이번엔 기록 없음', tint: COLORS.textSecondary };
+  if (!past) return { text: '지난 치료엔 기록 없음', tint: COLORS.textSecondary };
+
+  const gap = past.severity - now.severity;
+  if (Math.abs(gap) < SAME_MARGIN) return { text: '비슷', tint: COLORS.textSecondary };
+  return gap > 0
+    ? { text: `${gap.toFixed(1)} 호전`, tint: COLORS.success }
+    : { text: `${Math.abs(gap).toFixed(1)} 악화`, tint: COLORS.error };
+}
 
 /** 공통점 / 차이점 목록 */
 function Findings({
@@ -71,6 +108,44 @@ export default function ComparisonScreen() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [comparing, setComparing] = useState(false);
+
+  // 서버 비교 결과는 자유 문장이라 '어떤 증상이 어떻게 달라졌는지'를
+  // 골라 볼 수 없다. 두 치료의 상태 기록을 직접 받아 증상별로 나눈다
+  const pastVisitId = comparison?.pastVisitId ?? null;
+
+  const currentLogs = useAsync(
+    async () => (visitId == null ? [] : healthLogApi.getByVisit(visitId)),
+    [visitId],
+    { enabled: visitId != null },
+  );
+
+  const pastLogs = useAsync(
+    async () => (pastVisitId == null ? [] : healthLogApi.getByVisit(pastVisitId)),
+    [pastVisitId],
+    { enabled: pastVisitId != null },
+  );
+
+  // 두 치료에 한 번이라도 적힌 증상 전부
+  const symptoms = useMemo(() => {
+    const found = new Set<string>();
+    for (const log of [...(currentLogs.data ?? []), ...(pastLogs.data ?? [])]) {
+      for (const name of log.sideEffects ?? []) {
+        if (name) found.add(name);
+      }
+    }
+    return [...found].sort();
+  }, [currentLogs.data, pastLogs.data]);
+
+  // 켜진 목록이 아니라 꺼진 목록을 들고 있는다.
+  // 그래야 증상이 뒤늦게 도착해도 저절로 켜진 상태로 나온다
+  const [hidden, setHidden] = useState<string[]>([]);
+
+  const toggleSymptom = (name: string) =>
+    setHidden((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+
+  const shownSymptoms = symptoms.filter((name) => !hidden.includes(name));
 
   // 자기 자신은 비교 대상이 될 수 없다
   const pastVisits = useMemo(
@@ -225,6 +300,76 @@ export default function ComparisonScreen() {
                   </View>
                 )}
 
+                {/* 증상별로 골라 보기 */}
+                {comparison && !comparing && symptoms.length > 0 && (
+                  <View style={styles.symptomCard}>
+                    <Text style={styles.symptomTitle}>증상별 비교</Text>
+                    <Text style={styles.symptomHint}>
+                      보고 싶은 증상만 남겨 보세요
+                    </Text>
+
+                    <View style={styles.chipRow}>
+                      {symptoms.map((name) => {
+                        const on = !hidden.includes(name);
+                        return (
+                          <TouchableOpacity
+                            key={name}
+                            style={[styles.chip, on && styles.chipOn]}
+                            onPress={() => toggleSymptom(name)}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={[styles.chipText, on && styles.chipTextOn]}>
+                              {name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {shownSymptoms.length === 0 ? (
+                      <Text style={styles.emptyText}>
+                        증상을 하나 이상 골라 주세요.
+                      </Text>
+                    ) : (
+                      <>
+                        <View style={styles.symptomHead}>
+                          <Text style={styles.symptomHeadName}>증상</Text>
+                          <Text style={styles.symptomHeadCell}>지난</Text>
+                          <Text style={styles.symptomHeadCell}>이번</Text>
+                          <Text style={styles.symptomHeadVerdict}>변화</Text>
+                        </View>
+
+                        {shownSymptoms.map((name) => {
+                          const now = statFor(currentLogs.data ?? [], name);
+                          const past = statFor(pastLogs.data ?? [], name);
+                          const verdict = verdictOf(now, past);
+
+                          return (
+                            <View key={name} style={styles.symptomRow}>
+                              <Text style={styles.symptomName} numberOfLines={1}>
+                                {name}
+                              </Text>
+                              <Text style={styles.symptomCell}>
+                                {past ? `${past.severity.toFixed(1)}\n${past.days}일` : '—'}
+                              </Text>
+                              <Text style={styles.symptomCell}>
+                                {now ? `${now.severity.toFixed(1)}\n${now.days}일` : '—'}
+                              </Text>
+                              <Text style={[styles.symptomVerdict, { color: verdict.tint }]}>
+                                {verdict.text}
+                              </Text>
+                            </View>
+                          );
+                        })}
+
+                        <Text style={styles.symptomFoot}>
+                          숫자는 그 증상을 적은 날의 평균 심각도입니다. 낮을수록 좋습니다.
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                )}
+
                 {!comparison && !comparing && (
                   <Text style={styles.hint}>
                     위에서 지난 치료를 고르면 이번 치료와 견줘 드릴게요.
@@ -255,6 +400,90 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: TYPOGRAPHY.sm, color: COLORS.textSecondary,
     textAlign: 'center', paddingVertical: SPACING.base,
+  },
+
+  // 증상별 비교
+  symptomCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.base,
+    gap: SPACING.sm,
+    ...SHADOW.sm,
+  },
+  symptomTitle: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: TYPOGRAPHY.bold,
+    color: COLORS.textPrimary,
+  },
+  symptomHint: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
+    marginTop: -SPACING.xs,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs + 2,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.round,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: SPACING.xs,
+    backgroundColor: COLORS.inputBg,
+  },
+  chipOn: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
+  },
+  chipText: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.medium,
+  },
+  chipTextOn: {
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.semibold,
+  },
+  symptomHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: SPACING.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: SPACING.xs,
+  },
+  symptomHeadName: { flex: 1, fontSize: 10, color: COLORS.textSecondary },
+  symptomHeadCell: { width: 48, fontSize: 10, color: COLORS.textSecondary, textAlign: 'center' },
+  symptomHeadVerdict: { width: 62, fontSize: 10, color: COLORS.textSecondary, textAlign: 'right' },
+  symptomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.xs + 2,
+  },
+  symptomName: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.sm,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.medium,
+  },
+  symptomCell: {
+    width: 48,
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  symptomVerdict: {
+    width: 62,
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.bold,
+    textAlign: 'right',
+  },
+  symptomFoot: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
   },
   hint: {
     fontSize: TYPOGRAPHY.xs, color: COLORS.textSecondary,

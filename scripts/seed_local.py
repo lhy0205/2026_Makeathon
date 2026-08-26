@@ -71,22 +71,38 @@ def iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 
+def symptoms_on(symptoms: list[str], elapsed: int) -> list[str]:
+    """치료가 진행될수록 증상이 하나씩 잦아든다.
+
+    하루치만 남기면 증상별 비교 화면에 견줄 것이 없다.
+    이틀에 하나씩 사라지게 해서 '나아지는 중'이 데이터에 드러나게 한다.
+    """
+    return symptoms[: max(0, len(symptoms) - elapsed // 2)]
+
+
 def seed_user(api: Api, profile: dict, today: date) -> None:
     user = api.login_or_register(profile["email"], profile["password"], profile["nickname"])
     print(f"\n[{user['nickname']}] {user['email']}")
 
-    start = today - timedelta(days=profile["days_ago"])
-    end = start + timedelta(days=profile["duration"] - 1)
+    # 지난 치료와 이번 치료를 모두 만든다. 하나만 있으면 치료 비교 화면에
+    # 견줄 상대가 없고, 증상별 비교도 한쪽이 비어 아무것도 보여주지 못한다
+    for course in (profile["past"], profile["current"]):
+        seed_treatment(api, profile, course, today)
+
+
+def seed_treatment(api: Api, profile: dict, course: dict, today: date) -> None:
+    start = today - timedelta(days=course["days_ago"])
+    end = start + timedelta(days=course["duration"] - 1)
 
     visit = api.request("POST", "/api/v1/visits", {
         "hospitalName": profile["hospital"],
         "departmentName": profile["department"],
         "visitedAt": start.isoformat(),
-        "visitReason": profile["reason"],
+        "visitReason": course["reason"],
         "medicationStartDate": start.isoformat(),
         "medicationEndDate": end.isoformat(),
     })
-    print(f"  방문 {visit['id']}: {profile['hospital']} ({profile['reason']})")
+    print(f"  [{course['label']}] 방문 {visit['id']}: {profile['hospital']} ({course['reason']})")
 
     prescription = api.request("POST", f"/api/v1/visits/{visit['id']}/prescriptions", {
         "imageUrl": None,
@@ -112,13 +128,19 @@ def seed_user(api: Api, profile: dict, today: date) -> None:
 
     # 지난 날짜를 돌며 복약 체크와 상태 기록을 남긴다
     checked = skipped = 0
+    # 복약 기간 안에서, 오늘 이전까지만 남긴다.
+    # 오늘까지 돌면 지난 치료가 40일 전이라 치료가 끝난 뒤의 날까지
+    # 기록이 생긴다 — 끝난 치료에 오늘 증상이 적혀 있는 꼴이 된다
+    last = min(end, today - timedelta(days=1))
+    logged = 0
+
     day = start
-    while day < today:
+    while day <= last:
         doses = api.request("GET", f"/api/v1/doses?date={day.isoformat()}")
 
         for dose in doses:
             # 대체로 잘 챙겨 먹되 가끔 거른다 — 100%면 오히려 가짜처럼 보인다
-            if random.random() < profile["adherence"]:
+            if random.random() < course["adherence"]:
                 taken_at = iso(datetime.combine(day, datetime.min.time()) + timedelta(hours=9))
                 api.request("PUT", f"/api/v1/doses/{dose['id']}/taken", {"takenAt": taken_at})
                 checked += 1
@@ -128,23 +150,29 @@ def seed_user(api: Api, profile: dict, today: date) -> None:
 
         # 증상이 날마다 조금씩 나아지는 흐름을 만든다 (심각도는 낮을수록 좋다)
         elapsed = (day - start).days
-        severity = max(0, profile["initial_severity"] - elapsed)
+        severity = max(0, course["initial_severity"] - elapsed)
         api.request("POST", f"/api/v1/visits/{visit['id']}/health-logs", {
             "recordedAt": iso(datetime.combine(day, datetime.min.time()) + timedelta(hours=21)),
-            "symptomName": profile["symptom"],
+            "symptomName": course["symptom"],
             "symptomSeverity": severity,
-            "sideEffects": profile["side_effects"] if elapsed < 2 else [],
-            "bodyTemperature": round(profile["initial_temp"] - elapsed * 0.2, 1),
+            "sideEffects": symptoms_on(course["side_effects"], elapsed),
+            "bodyTemperature": round(course["initial_temp"] - elapsed * 0.2, 1),
             "sleepHours": round(random.uniform(5.5, 8.0), 1),
             "waterIntakeMl": random.choice([750, 1000, 1250, 1500, 2000]),
             "activityMinutes": random.choice([0, 20, 30, 45]),
             "memo": None,
         })
+        logged += 1
 
         day += timedelta(days=1)
 
     print(f"  복약 체크 {checked}건 / 건너뜀 {skipped}건")
-    print(f"  상태 기록 {(today - start).days}일치")
+    print(f"  상태 기록 {logged}일치")
+
+    # 챗봇과 리포트는 이번 치료에만 만든다. 지난 치료에는 필요 없고,
+    # 실제 AI 서버를 쓰면 질문 하나에 십수 초가 걸려 시드가 배로 느려진다
+    if not course.get("with_chat"):
+        return
 
     for question in profile["questions"]:
         api.request("POST", f"/api/v1/visits/{visit['id']}/chat/messages", {"content": question})
@@ -157,10 +185,21 @@ def seed_user(api: Api, profile: dict, today: date) -> None:
 PROFILES = [
     {
         "email": "demo1@medi.com", "password": "password123", "nickname": "김철수",
-        "hospital": "서울내과의원", "department": "내과", "reason": "몸살감기",
-        "days_ago": 6, "duration": 7, "adherence": 0.85,
-        "symptom": "인후통", "side_effects": ["속쓰림"],
-        "initial_severity": 7, "initial_temp": 37.8,
+        "hospital": "서울내과의원", "department": "내과",
+        # 같은 진료과로 두 번 치료받은 사람. 지난번보다 이번이 나은 흐름이라
+        # 치료 비교와 증상별 비교가 실제로 보여줄 것이 생긴다
+        "past": {
+            "label": "지난 치료", "reason": "인후염",
+            "days_ago": 40, "duration": 7, "adherence": 0.55,
+            "symptom": "인후통", "side_effects": ["속쓰림", "두통", "어지러움"],
+            "initial_severity": 9, "initial_temp": 38.4,
+        },
+        "current": {
+            "label": "이번 치료", "reason": "몸살감기", "with_chat": True,
+            "days_ago": 6, "duration": 7, "adherence": 0.85,
+            "symptom": "인후통", "side_effects": ["속쓰림", "두통"],
+            "initial_severity": 7, "initial_temp": 37.8,
+        },
         "medications": [
             {"medicationName": "타이레놀", "dosage": 500, "doseUnit": "mg",
              "frequencyPerDay": 3, "durationDays": 7,
@@ -173,10 +212,19 @@ PROFILES = [
     },
     {
         "email": "demo2@medi.com", "password": "password123", "nickname": "이영희",
-        "hospital": "강남피부과", "department": "피부과", "reason": "두드러기",
-        "days_ago": 4, "duration": 5, "adherence": 0.45,
-        "symptom": "가려움", "side_effects": ["졸음"],
-        "initial_severity": 6, "initial_temp": 36.6,
+        "hospital": "강남피부과", "department": "피부과",
+        "past": {
+            "label": "지난 치료", "reason": "접촉성 피부염",
+            "days_ago": 35, "duration": 5, "adherence": 0.40,
+            "symptom": "가려움", "side_effects": ["졸음", "발진", "구역감"],
+            "initial_severity": 8, "initial_temp": 36.8,
+        },
+        "current": {
+            "label": "이번 치료", "reason": "두드러기", "with_chat": True,
+            "days_ago": 4, "duration": 5, "adherence": 0.45,
+            "symptom": "가려움", "side_effects": ["졸음", "발진"],
+            "initial_severity": 6, "initial_temp": 36.6,
+        },
         "medications": [
             {"medicationName": "세티리진", "dosage": 10, "doseUnit": "mg",
              "frequencyPerDay": 1, "durationDays": 5,
