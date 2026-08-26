@@ -76,7 +76,8 @@ export default function MedicationEditor({ medications, onChange, editable = tru
 
       {unmatchedCount > 0 && (
         <Text style={styles.warn}>
-          {unmatchedCount}개의 약을 찾지 못했어요. 이름이 맞는지 확인해 주세요.
+          {unmatchedCount}개의 약을 찾지 못했어요.
+          {'\n'}이름을 고치거나, 맞다면 확인 버튼을 눌러주세요.
         </Text>
       )}
 
@@ -109,6 +110,19 @@ export default function MedicationEditor({ medications, onChange, editable = tru
             placeholder="약 이름"
             placeholderTextColor={COLORS.textPlaceholder}
           />
+
+          {/* 지식베이스에 없는 약이라도 처방은 실재한다. 이름이 맞다면
+              경고를 지우고 넘어갈 수 있어야 한다 — 그러지 않으면
+              사용자가 할 수 있는 일이 없는 경고만 남는다 */}
+          {editable && med.unmatched && (
+            <TouchableOpacity
+              style={styles.confirmBtn}
+              onPress={() => patch(index, { unmatched: false })}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.confirmBtnText}>이 이름이 맞아요</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.numberRowWrap}>
             <NumberField
@@ -202,6 +216,19 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.sm,
     paddingHorizontal: 5,
     paddingVertical: 1,
+  },
+  confirmBtn: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  confirmBtnText: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: TYPOGRAPHY.semibold,
+    color: COLORS.primary,
   },
   remove: {
     marginLeft: 'auto',

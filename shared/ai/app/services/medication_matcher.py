@@ -204,6 +204,23 @@ def _fuzzy_lookup(name: str) -> tuple[dict | None, float]:
     return entry, score
 
 
+def _classification_text(known: dict | None) -> str | None:
+    """분류만 아는 약에 보여줄 한 줄.
+
+    지식베이스에 효능·부작용이 없는 약이라도 심평원 목록에 있으면
+    무슨 약인지와 약효군은 안다. 화면에 아무것도 못 띄우는 것보다는
+    '무슨 약인지는 안다'가 낫다.
+
+    다만 이걸 효능 설명인 것처럼 두면 안 된다. 분류라는 것과
+    상세 정보가 없다는 것을 문장 안에 적어 둔다.
+    """
+    if not known:
+        return None
+
+    label = known.get("atc_name") or known["name"]
+    return f"{label} 계열 (ATC {known['atc']}) · 상세 효능 정보는 등록되지 않았습니다"
+
+
 def resolve_name(name: str) -> str | None:
     """약 이름을 지식베이스의 정식 명칭으로 바꾼다. 못 찾으면 None.
 
@@ -285,15 +302,19 @@ def match_medication(parsed: ParsedMedication) -> AnalyzedMedication:
     return AnalyzedMedication(
         medication_name=name,
         # 이 값이 있어야 백엔드가 약물 상호작용을 검사할 수 있다.
-        # 색인 단계에서 None을 빈 문자열로 바꿔 두므로 여기서 되돌린다
+        # 색인 단계에서 None을 빈 문자열로 바꿔 두므로 여기서 되돌린다.
+        # 심평원 목록에는 품목기준코드가 없어서 분류만 아는 약은 비워 둔다
         item_seq=((entry.get("item_seq") or None) if entry else None),
         dosage=parsed.dosage,
         dose_unit=parsed.dose_unit,
         frequency_per_day=parsed.frequency_per_day,
         duration_days=parsed.duration_days,
         instructions=parsed.instructions,
-        purpose=entry.get("purpose") if entry else None,
+        purpose=entry.get("purpose") if entry else _classification_text(known),
+        # 약효군이 같아도 부작용까지 같지는 않다. 남의 것을 빌려 오지 않는다
         side_effect_summary=entry.get("side_effects") if entry else None,
         confidence=round(confidence, 2),
-        unmatched=entry is None,
+        # 분류라도 알아냈으면 '못 찾은 약'은 아니다. 다만 관리자 화면의
+        # 실패 목록은 위 record_match가 따로 남기므로 채워 넣을 대상에선 안 빠진다
+        unmatched=entry is None and known is None,
     )
