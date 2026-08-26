@@ -55,6 +55,9 @@ export default function MedicationCheckScreen() {
     summary?.finalSymptomSeverity ?? null,
   );
 
+  // 상태 기록에 적어 온 증상들. 서버가 이미 추려 주는데 화면에 없었다
+  const symptoms = summary?.majorSideEffects ?? [];
+
   const toggleDose = async (doseId: number, isTaken: boolean) => {
     // 서버에 'PENDING으로 되돌리기'가 없다. 체크 해제는 건너뜀으로 기록한다
     try {
@@ -93,6 +96,18 @@ export default function MedicationCheckScreen() {
             <Text style={styles.recoveryHint}>
               상태 기록을 쌓으면 회복 정도를 알려드려요.
             </Text>
+          )}
+
+          {/* 어떤 증상을 겪고 있는지. 회복률 숫자만으로는
+              무엇이 나아지는 중인지 알 수 없다 */}
+          {symptoms.length > 0 && (
+            <View style={styles.symptomRow}>
+              {symptoms.map((name) => (
+                <View key={name} style={styles.symptomChip}>
+                  <Text style={styles.symptomChipText}>{name}</Text>
+                </View>
+              ))}
+            </View>
           )}
 
           {/* 모래시계 아이콘 영역 */}
@@ -240,6 +255,26 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.xs,
     color: COLORS.textSecondary,
     marginTop: -SPACING.sm,
+  },
+  symptomRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    marginTop: -SPACING.sm,
+  },
+  symptomChip: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.round,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: 2,
+    backgroundColor: COLORS.inputBg,
+  },
+  symptomChipText: {
+    fontSize: TYPOGRAPHY.xs,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.medium,
   },
   hourglassBox: {
     width: 100,
